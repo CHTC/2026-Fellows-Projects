@@ -1,0 +1,9 @@
+*~
+.*.swp
+*.DS_STORE
+
+# python cache files
+__pycache__
+
+# vscode files
+.vscode/
