@@ -37,7 +37,7 @@ Each job writes one output file. The file should contain:
 
 The filename should be unique per job (e.g. incorporating the Job ID) so files do not collide at the Access Point.
 
-Job Completion Criteria
+### Job Completion Criteria
 A job is considered done if and only if:
 - Its output file exists at the Access Point, and
 - There is a corresponding "Job terminated" entry for that Job ID in the log file 
