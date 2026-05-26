@@ -5,7 +5,7 @@
 1. Update the *README.md* with the appropriate year.
 2. For each fellow:
    1. Update the *README.md* with the appropriate project information.
-   2. Create a subdirectory in the root of the repository for the project.
+   2. Create a subdirectory in the root of the repository for the project, and `touch README.md` in it.
       Note: This directory should use the github account name of the fellow.
 
 ## Fellowship Start (Fellows)
