@@ -1,0 +1,4 @@
+job_id=3
+samples=10000
+hits=7860
+pi_estimate=3.144
