@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#script that takes ap. individual job output files and combines them into a single dataset for analysis
+#script that takes all individual job output files and combines them into a single dataset for analysis
 import os
 import re
 from datetime import datetime
