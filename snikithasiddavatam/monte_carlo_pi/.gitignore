@@ -1,6 +1,7 @@
 *.txt
 *.log
 *.err
+*.out
 !output_0.txt
 !output_1.txt
 !output_2.txt
@@ -10,3 +11,6 @@
 !job_0.log
 !job_1.log
 !job_2.log
+!job_0.out
+!job_1.out
+!job_2.out
