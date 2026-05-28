@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 #script that takes all individual job output files and combines them into a single dataset for analysis
 import os
 import re
