@@ -97,4 +97,3 @@ with open("results.csv", "w", newline="") as f:
 print(f"Saved {len(results)} rows to results.csv")
 print(f"Final pi estimate: {results[-1]['pi_est']:.10f}")
 print(f"Final error: {results[-1]['error']:.2e}")
-
