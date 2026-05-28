@@ -1,0 +1,12 @@
+*.txt
+*.log
+*.err
+!output_0.txt
+!output_1.txt
+!output_2.txt
+!job_0.err
+!job_1.err
+!job_2.err
+!job_0.log
+!job_1.log
+!job_2.log
