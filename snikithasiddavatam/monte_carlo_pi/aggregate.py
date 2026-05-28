@@ -1,4 +1,5 @@
-#script that takes all individual job output files and combines them into a single dataset for analysis
+# Script that takes all individual job output files and combines them into a single dataset for analysis.
+
 import os
 import re
 from datetime import datetime
@@ -72,7 +73,13 @@ valid_jobs.sort(key=lambda x: x["timestamp"])
 S = valid_jobs[0]["samples"]
 M_total = 0
 results = []
-
+# results.csv with one row per job, sorted by termination timestamp, with columns:
+# j - cumulative job index (1-based, ordered by termination time)
+# job_id - HTCondor process ID for the job
+# timestamp - datetime when the job terminated (from the HTCondor log)
+# N - total samples accumulated across all jobs up to and including this one
+# pi_est - running Monte Carlo estimate of pi (4 * cumulative_hits / N)
+# error - absolute error |pi_est - pi|
 for j, job in enumerate(valid_jobs, start=1):
     M_total += job["hits"]
     S_total  = j * S
