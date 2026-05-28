@@ -36,3 +36,25 @@ timestamps = {}
 with open(LOG_FILE) as f:
     content = f.read()
 
+# Each event block looks like:
+# 005 (5203008.000.000) 05/27 13:54:49 Job terminated.
+pattern = r"005 \(\d+\.(\d+)\.\d+\) (\d{2}/\d{2} \d{2}:\d{2}:\d{2}) Job terminated\."
+for match in re.finditer(pattern, content):
+    proc_id   = int(match.group(1))
+    timestamp = datetime.strptime(f"2026/{match.group(2)}", "%Y/%m/%d %H:%M:%S")
+    timestamps[proc_id] = timestamp
+
+#Keep only valid jobs (output file and log entry) 
+valid_jobs = []
+for job_id, job_data in jobs.items():
+    if job_id in timestamps:
+        job_data["timestamp"] = timestamps[job_id]
+        valid_jobs.append(job_data)
+    else:
+        print(f"Warning: Job {job_id} has output file but no log entry — skipping.")
+
+print(f"Valid jobs (both file + log entry): {len(valid_jobs)}")
+
+# Sort by timestamp
+valid_jobs.sort(key=lambda x: x["timestamp"])
+
