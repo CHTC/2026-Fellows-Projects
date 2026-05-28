@@ -12,6 +12,7 @@ jobs = {}
 for filename in os.listdir(OUTPUT_DIR):
     if filename.startswith("output_") and filename.endswith(".txt"):
         filepath = os.path.join(OUTPUT_DIR, filename)
+        job_number = filename[len("output_"):-len(".txt")]
         try:
             data = {}
             with open(filepath) as f:
@@ -32,8 +33,12 @@ for filename in os.listdir(OUTPUT_DIR):
                 "hits":        int(data["hits"]),
                 "pi_estimate": float(data["pi_estimate"])
             }
-        except (OSError, ValueError) as e:
-            print(f"Skipping {filename}: {e}")
+        except OSError as e:
+            print(f"Skipping job {job_number}: Could not open file {filename}")
+        except KeyError as e:
+            print(f"Skipping job {job_number}: Missing key {e} in {filename}")
+        except ValueError as e:
+            print(f"Skipping job {job_number}: Bad value in {filename}: {e}")
 
 print(f"Found {len(jobs)} valid output files.")
 
