@@ -21,14 +21,19 @@ for filename in os.listdir(OUTPUT_DIR):
                         continue
                     key, val = line.strip().split("=", 1)
                     data[key] = val
+            required_keys = ("job_id", "samples", "hits", "pi_estimate")
+            missing = [k for k in required_keys if k not in data]
+            if missing:
+                print(f"Skipping {filename}: missing keys {missing}")
+                continue
             job_id = int(data["job_id"])
             jobs[job_id] = {
                 "job_id":      job_id,
                 "samples":     int(data["samples"]),
-                "hits":        int(data["hits"]),    
+                "hits":        int(data["hits"]),
                 "pi_estimate": float(data["pi_estimate"])
             }
-        except Exception as e:
+        except (OSError, ValueError) as e:
             print(f"Skipping {filename}: {e}")
 
 print(f"Found {len(jobs)} valid output files.")
@@ -88,3 +93,4 @@ with open("results.csv", "w", newline="") as f:
 print(f"Saved {len(results)} rows to results.csv")
 print(f"Final pi estimate: {results[-1]['pi_est']:.10f}")
 print(f"Final error: {results[-1]['error']:.2e}")
+
