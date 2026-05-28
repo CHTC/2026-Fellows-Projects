@@ -1,5 +1,4 @@
-executable          = mc_pi.py
-arguments           = 10000 $(Process)
+shell = python3 mc_pi.py 10000 $(Process)
 
 output              = logs/job_$(Process).out
 error               = logs/job_$(Process).err
