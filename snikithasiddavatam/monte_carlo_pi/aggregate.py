@@ -1,7 +1,7 @@
 # Script that takes all individual job output files and combines them into a single dataset for analysis.
 
 import os
-import re
+import htcondor
 from datetime import datetime
 
 OUTPUT_DIR = "logs"        # Where output_*.txt files are
@@ -43,18 +43,12 @@ for filename in os.listdir(OUTPUT_DIR):
 
 print(f"Found {len(jobs)} valid output files.")
 
-# parse log files for "job terminated" timestamps
+# parse log file for "job terminated" timestamps using HTCondor python bindings
 timestamps = {}
-with open(LOG_FILE) as f:
-    content = f.read()
-
-# Each event block looks like:
-# 005 (5203008.000.000) 05/27 13:54:49 Job terminated.
-pattern = r"005 \(\d+\.(\d+)\.\d+\) (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Job terminated\."
-for match in re.finditer(pattern, content):
-    proc_id   = int(match.group(1))
-    timestamp = datetime.strptime(match.group(2), "%Y-%m-%d %H:%M:%S")
-    timestamps[proc_id] = timestamp
+jel = htcondor.JobEventLog(LOG_FILE)
+for event in jel.events(stop_after=0):
+    if event.type == htcondor.JobEventType.JOB_TERMINATED:
+        timestamps[event.proc] = datetime.fromtimestamp(event.timestamp)
 
 #Keep only valid jobs (output file and log entry) 
 valid_jobs = []
