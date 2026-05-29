@@ -1,0 +1,15 @@
+executable          = mc_pi.py
+arguments           = 10000 $(Process)
+
+output              = logs/job_$(Process).out
+error               = logs/job_$(Process).err
+log                 = logs/mc_pi.log
+
+transfer_input_files  = mc_pi.py
+transfer_output_files = output_$(Process).txt
+
+request_cpus        = 1
+request_memory      = 512MB
+request_disk        = 100MB
+
+queue 100
