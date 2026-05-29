@@ -1,7 +1,7 @@
 # Script that takes all individual job output files and combines them into a single dataset for analysis.
 
 import os
-import htcondor
+import htcondor2 as htcondor
 from datetime import datetime
 
 OUTPUT_DIR = "logs"        # Where output_*.txt files are
