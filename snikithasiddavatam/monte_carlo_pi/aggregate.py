@@ -1,5 +1,4 @@
-# Script that takes all individual job output files and combines them into a single dataset for analysis.
-
+# script that takes all individual job output files and combines them into a single dataset for analysis.
 import os
 import htcondor2 as htcondor
 from datetime import datetime
@@ -45,6 +44,7 @@ print(f"Found {len(jobs)} valid output files.")
 
 # parse log file for "job terminated" timestamps using HTCondor python bindings
 timestamps = {}
+print(f"Parsing HTCondor log file: {LOG_FILE}")
 jel = htcondor.JobEventLog(LOG_FILE)
 for event in jel.events(stop_after=0):
     if event.type == htcondor.JobEventType.JOB_TERMINATED:
