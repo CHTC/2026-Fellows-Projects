@@ -52,7 +52,8 @@ ax1.axhline(y=PI_REF, color="red", linewidth=1.8,
 ax1.set_xlabel("Cumulative Jobs Completed (j)", fontsize=11)
 ax1.set_ylabel(r"Cumulative $\hat{\pi}$ Estimate", fontsize=11)
 ax1.set_title("π Estimate vs. Cumulative Jobs - All Runs", fontsize=11)
-ax1.legend(fontsize=8, markerscale=1.5, loc="upper right")
+ax1.legend(fontsize=8, markerscale=1.5, loc="upper left",
+           bbox_to_anchor=(1.01, 1), borderaxespad=0)
 ax1.annotate(f"{len(all_runs)} runs",
              xy=(0.03, 0.05), xycoords="axes fraction",
              fontsize=9, bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.7))
@@ -82,7 +83,8 @@ ax2.set_yscale("log")
 ax2.set_xlabel("Total Samples N", fontsize=11)
 ax2.set_ylabel(r"Absolute Error $|\hat{\pi} - \pi_{ref}|$", fontsize=11)
 ax2.set_title("Log-Log Convergence - All Runs", fontsize=11)
-ax2.legend(fontsize=8, markerscale=1.5, loc="upper right")
+ax2.legend(fontsize=8, markerscale=1.5, loc="upper left",
+           bbox_to_anchor=(1.01, 1), borderaxespad=0)
 
 plt.tight_layout()
 output_path = "all_runs_scatter.png"
