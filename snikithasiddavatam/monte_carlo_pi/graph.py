@@ -4,15 +4,10 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import seaborn as sns
 import numpy as np
-
-BASE_DIR = "mc_runs"  # Directory containing run_XXXXXXX folders
+from utils import get_run_folders
+BASE_DIR = "mc_runs"
 PI_REF   = 3.14159265358979323846
-
-run_folders = sorted([
-    d for d in os.listdir(BASE_DIR)
-    if os.path.isdir(os.path.join(BASE_DIR, d)) and d.startswith("run_")
-    and os.path.isfile(os.path.join(BASE_DIR, d, "results.csv"))
-])
+run_folders = get_run_folders(BASE_DIR, with_results_csv=True)
 
 if not run_folders:
     print("Error: No run_*/results.csv files found. Run aggregate.py first.")

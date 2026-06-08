@@ -4,15 +4,14 @@ import csv
 import htcondor2 as htcondor
 from datetime import datetime
 
+from utils import get_run_folders
+
 # Configuration 
 BASE_DIR = "mc_runs"  # Directory containing run_XXXXXXX folders
 PI_REF   = 3.14159265358979323846
 
 # auto-detect all run_* folders 
-run_folders = sorted([
-    d for d in os.listdir(BASE_DIR)
-    if os.path.isdir(os.path.join(BASE_DIR, d)) and d.startswith("run_")
-])
+run_folders = get_run_folders(BASE_DIR, with_results_csv=False)
 
 if not run_folders:
     print("Error: No run_* folders found in current directory.")
