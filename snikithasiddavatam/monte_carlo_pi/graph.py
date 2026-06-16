@@ -5,7 +5,7 @@ import matplotlib.ticker as ticker
 import seaborn as sns
 import numpy as np
 from utils import get_run_folders
-BASE_DIR = "mc_runs"
+BASE_DIR = "mc_runs_1000"
 PI_REF   = 3.14159265358979323846
 run_folders = get_run_folders(BASE_DIR, with_results_csv=True)
 
@@ -82,7 +82,7 @@ ax2.legend(fontsize=8, markerscale=1.5, loc="upper left",
            bbox_to_anchor=(1.01, 1), borderaxespad=0)
 
 plt.tight_layout()
-output_path = "all_runs_scatter.png"
+output_path = f"{BASE_DIR}_scatter.png"
 plt.savefig(output_path, dpi=150, bbox_inches="tight")
 print(f"\nPlot saved to {output_path}")
 plt.show()
