@@ -6,7 +6,7 @@ Profile the error of Monte Carlo numerical integration as an estimator of π as 
 ### Background
 The Monte Carlo method estimates π by exploiting the ratio of the area of a unit circle to its enclosing unit square. For a point (x, y) drawn uniformly from [0,1) × [0,1), the point falls inside the quarter-circle if: x² + y² < 1
 
-The fraction of points satisfying this condition converges to π/4 as the number of samples grows. Multiplying by 4 gives the estimate of π. The expected error decreases proportionally to 1/N (the standard Monte Carlo convergence rate).
+The fraction of points satisfying this condition converges to π/4 as the number of samples grows. Multiplying by 4 gives the estimate of π. The expected error decreases proportionally to 1/√N (the standard Monte Carlo convergence rate).
 
 ### Experiment Parameters
 
@@ -50,3 +50,233 @@ All J jobs are submitted with an identical and consistent set of resource reques
 - Same execution environment / container image
 
 This ensures that differences in job completion time reflect scheduling, queue variation, and pool resource heterogeneity.
+
+---
+
+## Files in `monte_carlo_pi/`
+
+### `mc_pi.py` — Worker script (runs on each HTCondor job)
+
+Generates S random (x, y) samples, counts hits inside the unit circle, and writes a result file.
+
+**Usage:**
+```
+python mc_pi.py <S> <ProcID> <ClusterID>
+```
+
+| Argument | Description |
+|----------|-------------|
+| `S` | Number of random samples to generate (must be a positive integer) |
+| `ProcID` | HTCondor process ID for this job (integer ≥ 0); also used in the output filename |
+| `ClusterID` | HTCondor cluster ID (integer ≥ 0); combined with ProcID to produce a unique, reproducible seed |
+
+**How seeding works:** The seed is derived from `MD5(ClusterID_ProcID)` mapped to a 32-bit integer. This guarantees that no two (ClusterID, ProcID) pairs share a seed, so every job produces statistically independent samples even across multiple submission clusters.
+
+**Output:** Writes `output_<ProcID>.txt` in the current directory with the following fields:
+```
+job_id=<ProcID>
+cluster_id=<ClusterID>
+seed=<seed>
+samples=<S>
+hits=<M>
+pi_estimate=<4*M/S>
+```
+
+**Example (running locally):**
+```
+python mc_pi.py 10000 0 1234
+# → writes output_0.txt
+```
+
+---
+
+### `mc_pi.sub` — HTCondor submit file
+
+Submits 100 independent jobs to HTCondor, each running `mc_pi.py` with S=10000 samples.
+
+**Key settings:**
+
+| Field | Value | Meaning |
+|-------|-------|---------|
+| `shell` | `python3 mc_pi.py 10000 $(Process) $(Cluster)` | Each job runs mc_pi.py; `$(Process)` and `$(Cluster)` are filled in by HTCondor |
+| `output` | `run_$(Cluster)/logs/logs/job_$(Process).out` | stdout per job, organized under a cluster-named folder |
+| `error` | `run_$(Cluster)/logs/logs/job_$(Process).err` | stderr per job |
+| `log` | `run_$(Cluster)/logs/logs/mc_pi.log` | Shared HTCondor event log for the whole cluster |
+| `transfer_input_files` | `mc_pi.py` | Sends the worker script to the execute node |
+| `transfer_output_files` | `output_$(Process).txt` | Retrieves each job's result file |
+| `transfer_output_remaps` | remaps output to `run_$(Cluster)/logs/output_$(Process).txt` | Keeps all output files organized under the cluster folder |
+| `request_cpus` | 1 | |
+| `request_memory` | 512MB | |
+| `request_disk` | 100MB | |
+| `queue 100` | 100 | Submits 100 jobs (ProcID 0–99) |
+
+**To submit:**
+```
+condor_submit mc_pi.sub
+```
+
+After submission, HTCondor creates a folder `run_<ClusterID>/` containing:
+```
+run_<ClusterID>/
+  logs/
+    logs/
+      job_0.out ... job_99.out      ← stdout per job
+      job_0.err ... job_99.err      ← stderr per job
+      mc_pi.log                     ← HTCondor event log
+    output_0.txt ... output_99.txt  ← result files transferred back
+```
+
+To run multiple independent experiments, simply run `condor_submit mc_pi.sub` again. Each cluster gets a different `ClusterID`, so the output folders will not collide.
+
+---
+
+### `aggregate.py` — Aggregates job results into `results.csv`
+
+Scans all `run_*` folders inside `mc_runs/`, cross-references output files with the HTCondor log, sorts jobs by termination timestamp, computes the running cumulative π estimate and absolute error, and writes a `results.csv` per run.
+
+**Prerequisites:**
+- Jobs must have completed and their output files must be present in `mc_runs/run_<ClusterID>/logs/`
+- `htcondor2` Python package must be installed (available on HTCondor Access Points)
+- `utils.py` must be in the same directory
+
+**Configuration (top of file):**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BASE_DIR` | `"mc_runs"` | Directory containing all `run_*` folders |
+| `PI_REF` | `3.14159265358979323846` | Reference value used to compute absolute error |
+
+**To run:**
+```
+python aggregate.py
+```
+
+**What it does, step by step:**
+1. Finds all `run_*` subfolders in `mc_runs/` that do not yet have a `results.csv`
+2. For each run folder, parses every `output_<job_id>.txt` file to extract `job_id`, `samples`, `hits`, and `pi_estimate`
+3. Parses the HTCondor log (`mc_pi.log`) using `htcondor2.JobEventLog` to extract the termination timestamp for each `ProcID`
+4. Keeps only jobs that have **both** a valid output file **and** a `JOB_TERMINATED` log entry
+5. Sorts valid jobs by termination timestamp (chronological order of completion)
+6. Computes running totals: cumulative hits → cumulative π estimate → absolute error
+7. Saves a `results.csv` to `mc_runs/run_<ClusterID>/results.csv`
+
+**Output CSV columns:**
+
+| Column | Description |
+|--------|-------------|
+| `j` | Cumulative job index (1-based, ordered by termination time) |
+| `job_id` | HTCondor ProcID |
+| `timestamp` | Datetime when the job terminated |
+| `N` | Total samples accumulated through job j: N = S × j |
+| `pi_est` | Running π estimate: 4 × (cumulative hits) / N |
+| `error` | Absolute error: \|pi_est − π_ref\| |
+
+---
+
+### `graph.py` — Plots convergence across all runs
+
+Reads all `results.csv` files produced by `aggregate.py` and generates a two-panel scatter plot saved as `all_runs_scatter.png`.
+
+**Prerequisites:**
+- `aggregate.py` must have been run first (at least one `results.csv` must exist)
+- Python packages: `pandas`, `matplotlib`, `seaborn`, `numpy`
+- `utils.py` must be in the same directory
+
+**Configuration (top of file):**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BASE_DIR` | `"mc_runs"` | Directory containing all `run_*` folders |
+| `PI_REF` | `3.14159265358979323846` | Reference value drawn as a horizontal line |
+
+**To run:**
+```
+python graph.py
+```
+
+**Output:** `all_runs_scatter.png` (saved in the current directory) with two panels:
+
+| Panel | X-axis | Y-axis | What it shows |
+|-------|--------|--------|---------------|
+| Left | Cumulative jobs completed (j) | Cumulative π estimate | How the estimate converges to true π as more jobs finish |
+| Right (log-log) | Total samples N | Absolute error \|π̂ − π_ref\| | Convergence rate; a dashed 1/√N reference line shows the theoretical Monte Carlo rate |
+
+Each run (cluster) is plotted as a distinct color. The right panel's reference line is scaled to the median of each run's first-point error.
+
+---
+
+### `utils.py` — Shared helper
+
+Provides `get_run_folders(BASE_DIR, with_results_csv)`, used by both `aggregate.py` and `graph.py`.
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `BASE_DIR` | `"mc_runs"` | Directory to scan for `run_*` subfolders |
+| `with_results_csv` | `True` | If `True`, only return folders that already contain a `results.csv`; if `False`, return all `run_*` folders regardless |
+
+`aggregate.py` calls it with `with_results_csv=False` (to find runs that still need processing).  
+`graph.py` calls it with `with_results_csv=True` (to find runs that are ready to plot).
+
+---
+
+### `examples/` — Sample data for testing
+
+Contains a small set of pre-generated output files and a parse test script for verifying the output format and the aggregation logic without needing to run HTCondor jobs.
+
+| File | Description |
+|------|-------------|
+| `output_0.txt` – `output_3.txt` | Example job output files in the expected format |
+| `parse_test.py` | Script to test parsing of the example output files |
+
+---
+
+## End-to-end workflow
+
+```
+1. Submit jobs
+   condor_submit mc_pi.sub
+   # → creates mc_runs/run_<ClusterID>/ with logs and output files
+
+2. Wait for jobs to complete
+   condor_q          # monitor queue
+   condor_wait mc_runs/run_<ClusterID>/logs/logs/mc_pi.log
+
+3. Aggregate results
+   python aggregate.py
+   # → writes mc_runs/run_<ClusterID>/results.csv
+
+4. Plot
+   python graph.py
+   # → writes all_runs_scatter.png
+```
+
+To run multiple independent experiments, repeat step 1 as many times as desired. Each submission creates a new `run_<ClusterID>/` folder. `aggregate.py` and `graph.py` will automatically discover and process all of them.
+
+---
+
+## Expected directory layout (after a full run)
+
+```
+monte_carlo_pi/
+├── mc_pi.py              ← worker script
+├── mc_pi.sub             ← HTCondor submit file
+├── aggregate.py          ← aggregation script
+├── graph.py              ← plotting script
+├── utils.py              ← shared helper
+├── all_runs_scatter.png  ← output plot (created by graph.py)
+├── examples/             ← sample data for testing
+│   ├── output_0.txt
+│   ├── output_1.txt
+│   ├── output_2.txt
+│   ├── output_3.txt
+│   └── parse_test.py
+└── mc_runs/
+    └── run_<ClusterID>/
+        ├── results.csv   ← written by aggregate.py
+        └── logs/
+            ├── output_0.txt ... output_99.txt
+            └── logs/
+                ├── job_0.out ... job_99.out
+                ├── job_0.err ... job_99.err
+                └── mc_pi.log
+```
