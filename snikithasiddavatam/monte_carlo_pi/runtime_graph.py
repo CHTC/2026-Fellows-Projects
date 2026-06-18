@@ -40,7 +40,7 @@ for i, (cluster_id, df) in enumerate(all_runs.items()):
             label=f"Run {cluster_id}")
 
 ax.set_xlabel("Total Samples N", fontsize=11)
-ax.set_ylabel("Wall-Clock Runtime (seconds)", fontsize=11)
+ax.set_ylabel("Cumulative Runtime (seconds)", fontsize=11)
 ax.set_title("Elapsed Time vs. Cumulative Samples", fontsize=11)
 ax.legend(fontsize=9, loc="upper left")
 
