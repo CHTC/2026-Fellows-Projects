@@ -73,17 +73,23 @@ for run_folder in run_folders:
         print(f"  No valid jobs found — skipping.")
         continue
 
-    #parse log file for "Job terminated" timestamps using htcondor2 ---
+    #parse log file for submit and "Job terminated" timestamps using htcondor2 ---
     timestamps = {}
+    submit_times = {}
     print(f"  Parsing HTCondor log file: {log_file}")
     try:
         jel = htcondor.JobEventLog(log_file)
         for event in jel.events(stop_after=0):
-            if event.type == htcondor.JobEventType.JOB_TERMINATED:
+            if event.type == htcondor.JobEventType.SUBMIT:
+                submit_times[event.proc] = datetime.fromtimestamp(event.timestamp)
+            elif event.type == htcondor.JobEventType.JOB_TERMINATED:
                 timestamps[event.proc] = datetime.fromtimestamp(event.timestamp)
     except Exception as e:
         print(f"  Warning: Could not parse log file with htcondor2: {e} — skipping.")
         continue
+
+    cluster_submit_time = min(submit_times.values()) if submit_times else None
+    print(f"  Cluster submit time: {cluster_submit_time}")
 
     print(f"  Found {len(timestamps)} 'Job terminated' entries in log.")
 
@@ -92,6 +98,11 @@ for run_folder in run_folders:
     for job_id, job_data in jobs.items():
         if job_id in timestamps:
             job_data["timestamp"] = timestamps[job_id]
+            job_data["submit_time"] = submit_times.get(job_id)
+            if cluster_submit_time is not None:
+                job_data["turnaround_s"] = (timestamps[job_id] - cluster_submit_time).total_seconds()
+            else:
+                job_data["turnaround_s"] = None
             valid_jobs.append(job_data)
         else:
             print(f"  Warning: Job {job_id} has output file but no log entry — skipping.")
@@ -102,7 +113,7 @@ for run_folder in run_folders:
         print(f"  No valid jobs after cross-checking — skipping.")
         continue
 
-    #sort by timestamp ---
+    #sort by timestamp 
     valid_jobs.sort(key=lambda x: x["timestamp"])
 
     #compute cumulative pi estimate and error 
@@ -122,17 +133,19 @@ for run_folder in run_folders:
         pi_est   = 4.0 * M_total / S_total
         error    = abs(pi_est - PI_REF)
         results.append({
-            "j":         j,
-            "job_id":    job["job_id"],
-            "timestamp": job["timestamp"],
-            "N":         S_total,
-            "pi_est":    pi_est,
-            "error":     error
+            "j":            j,
+            "job_id":       job["job_id"],
+            "submit_time":  job.get("submit_time"),
+            "timestamp":    job["timestamp"],
+            "turnaround_s": job.get("turnaround_s"),
+            "N":            S_total,
+            "pi_est":       pi_est,
+            "error":        error
         })
 
     # save to CSV inside run folder 
     with open(output_csv, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["j","job_id","timestamp","N","pi_est","error"])
+        writer = csv.DictWriter(f, fieldnames=["j","job_id","submit_time","timestamp","turnaround_s","N","pi_est","error"])
         writer.writeheader()
         writer.writerows(results)
 
