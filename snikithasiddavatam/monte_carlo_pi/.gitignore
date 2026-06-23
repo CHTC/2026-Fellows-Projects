@@ -2,6 +2,7 @@
 *.log
 *.err
 *.out
+mc_runs_100000/*/logs/logs/mc_pi.log
 !output_0.txt
 !output_1.txt
 !output_2.txt
@@ -15,5 +16,5 @@
 !job_1.out
 !job_2.out
 !mc_pi.log
-mc_run*/mc_pi.py
 mc_run*/mc_pi.sub
+mc_run*/mc_pi.py
