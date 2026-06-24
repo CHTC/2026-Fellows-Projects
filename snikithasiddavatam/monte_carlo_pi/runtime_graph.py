@@ -42,7 +42,7 @@ for i, (cluster_id, df) in enumerate(all_runs.items()):
 ax.set_xlabel("Wall-clock Runtime (seconds)", fontsize=11)
 ax.set_ylabel("Total Samples N", fontsize=11)
 ax.set_title("Cumulative Samples vs. Elapsed Time", fontsize=11)
-ax.legend(fontsize=9, loc="upper left")
+ax.legend(fontsize=9, loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
 
 plt.tight_layout()
 output_path = f"{BASE_DIR}_runtime.png"
@@ -80,7 +80,7 @@ if turnaround_data:
     ax2.set_xlabel("Turnaround Time (seconds)", fontsize=11)
     ax2.set_ylabel("Job ID (proc_id)", fontsize=11)
     ax2.set_title("Time from Cluster Submit to Job Termination", fontsize=11)
-    ax2.legend(fontsize=9, loc="upper left")
+    ax2.legend(fontsize=9, loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
 
     plt.tight_layout()
     turnaround_path = f"{BASE_DIR}_turnaround.png"
