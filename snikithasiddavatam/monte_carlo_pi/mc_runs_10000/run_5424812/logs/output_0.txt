@@ -1,0 +1,6 @@
+job_id=0
+cluster_id=5424812
+seed=3862740606
+samples=100
+hits=81
+pi_estimate=3.24
