@@ -237,7 +237,7 @@ for i, (cluster_id, df) in enumerate(all_runs.items()):
     ax5.plot(df["runtime_s"], df["j"], color=palette[i], linewidth=1.8,
              alpha=0.85, label=f"Run {cluster_id}")
 
-ax5.set_xlabel("Wall-clock Runtime (seconds)", fontsize=11)
+ax5.set_xlabel("Time from First Job Completion (s)", fontsize=11)
 ax5.set_ylabel("Total Jobs Completed", fontsize=11)
 ax5.set_title("Cumulative Jobs vs. Elapsed Time", fontsize=11)
 ax5.legend(fontsize=9, loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
