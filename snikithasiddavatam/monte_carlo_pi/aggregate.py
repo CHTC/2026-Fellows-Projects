@@ -7,7 +7,7 @@ from datetime import datetime
 from utils import get_run_folders
 
 # Configuration
-BASE_DIR = "mc_runs_1000"  # Directory containing run_XXXXXXX folders
+BASE_DIR = "mc_runs_100"  # Directory containing run_XXXXXXX folders
 PI_REF   = 3.14159265358979323846
 
 # auto-detect all run_* folders 
