@@ -228,6 +228,30 @@ plt.savefig(runtime_path, dpi=150, bbox_inches="tight")
 print(f"Runtime plot saved to {runtime_path}")
 plt.close()
 
+
+fig4, ax5 = plt.subplots(figsize=(10, 6))
+fig4.suptitle(
+    f"Runtime vs. Number of Jobs — 10 jobs ({len(all_runs)} cluster(s))",
+    fontsize=13, fontweight="bold",
+)
+for i, (cluster_id, df) in enumerate(all_runs.items()):
+    t0 = df["timestamp"].iloc[0]
+    df = df.copy()
+    df["runtime_s"] = (df["timestamp"] - t0).dt.total_seconds()
+    ax5.plot(df["runtime_s"], df["j"], color=palette[i], linewidth=1.8,
+             alpha=0.85, label=f"Run {cluster_id}")
+
+ax5.set_xlabel("Time from First Job Completion (s)", fontsize=11)
+ax5.set_ylabel("Total Jobs Completed", fontsize=11)
+ax5.set_title("Cumulative Jobs vs. Elapsed Time", fontsize=11)
+ax5.legend(fontsize=9, loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
+plt.tight_layout()
+runtime_jobs_path = os.path.join(GRAPH_DIR, "mc_runs_10_runtime_jobs.png")
+plt.savefig(runtime_jobs_path, dpi=150, bbox_inches="tight")
+print(f"Runtime jobs plot saved to {runtime_jobs_path}")
+plt.close()
+
+
 # ── 5. Turnaround graph ───────────────────────────────────────────────────────
 
 turnaround_data = {}

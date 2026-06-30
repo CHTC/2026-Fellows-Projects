@@ -11,8 +11,8 @@ import htcondor2 as htcondor
 from datetime import datetime
 from utils import get_run_folders
 
-BASE_DIR = "mc_runs_10000"
-GRAPH_DIR = "graphs/10000_jobs"
+BASE_DIR = "mc_runs_100"
+GRAPH_DIR = "graphs/100_jobs"
 PI_REF = 3.14159265358979323846
 
 os.makedirs(GRAPH_DIR, exist_ok=True)
@@ -155,7 +155,7 @@ palette = sns.color_palette("tab10", n_colors=len(all_runs))
 
 fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 fig.suptitle(
-    f"Monte Carlo π Convergence — All Runs ({len(all_runs)} clusters, 10,000 jobs each)",
+    f"Monte Carlo π Convergence — All Runs ({len(all_runs)} clusters, 100 jobs each)",
     fontsize=13, fontweight="bold", y=1.01,
 )
 
@@ -196,7 +196,7 @@ ax2.legend(fontsize=8, markerscale=1.5, loc="upper left",
            bbox_to_anchor=(1.01, 1), borderaxespad=0)
 
 plt.tight_layout()
-scatter_path = os.path.join(GRAPH_DIR, "mc_runs_10000_scatter.png")
+scatter_path = os.path.join(GRAPH_DIR, "mc_runs_100_scatter.png")
 plt.savefig(scatter_path, dpi=150, bbox_inches="tight")
 print(f"\nScatter plot saved to {scatter_path}")
 plt.close()
@@ -204,7 +204,7 @@ plt.close()
 
 fig2, ax3 = plt.subplots(figsize=(10, 6))
 fig2.suptitle(
-    f"Runtime vs. Number of Samples — 100 samples/job ({len(all_runs)} cluster(s))",
+    f"Runtime vs. Number of Samples — 1,000 samples/job ({len(all_runs)} cluster(s))",
     fontsize=13, fontweight="bold",
 )
 for i, (cluster_id, df) in enumerate(all_runs.items()):
@@ -219,7 +219,7 @@ ax3.set_ylabel("Total Samples N", fontsize=11)
 ax3.set_title("Cumulative Samples vs. Elapsed Time", fontsize=11)
 ax3.legend(fontsize=9, loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
 plt.tight_layout()
-runtime_path = os.path.join(GRAPH_DIR, "mc_runs_10000_runtime.png")
+runtime_path = os.path.join(GRAPH_DIR, "mc_runs_100_runtime.png")
 plt.savefig(runtime_path, dpi=150, bbox_inches="tight")
 print(f"Runtime plot saved to {runtime_path}")
 plt.close()
@@ -227,7 +227,7 @@ plt.close()
 
 fig4, ax5 = plt.subplots(figsize=(10, 6))
 fig4.suptitle(
-    f"Runtime vs. Number of Jobs — 10,000 jobs ({len(all_runs)} cluster(s))",
+    f"Runtime vs. Number of Jobs — 100 jobs ({len(all_runs)} cluster(s))",
     fontsize=13, fontweight="bold",
 )
 for i, (cluster_id, df) in enumerate(all_runs.items()):
@@ -242,7 +242,7 @@ ax5.set_ylabel("Total Jobs Completed", fontsize=11)
 ax5.set_title("Cumulative Jobs vs. Elapsed Time", fontsize=11)
 ax5.legend(fontsize=9, loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
 plt.tight_layout()
-runtime_jobs_path = os.path.join(GRAPH_DIR, "mc_runs_10000_runtime_jobs.png")
+runtime_jobs_path = os.path.join(GRAPH_DIR, "mc_runs_100_runtime_jobs.png")
 plt.savefig(runtime_jobs_path, dpi=150, bbox_inches="tight")
 print(f"Runtime jobs plot saved to {runtime_jobs_path}")
 plt.close()
@@ -272,7 +272,7 @@ if turnaround_data:
     ax4.set_title("Time from Cluster Submit to Job Termination", fontsize=11)
     ax4.legend(fontsize=9, loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
     plt.tight_layout()
-    turnaround_path = os.path.join(GRAPH_DIR, "mc_runs_10000_turnaround.png")
+    turnaround_path = os.path.join(GRAPH_DIR, "mc_runs_100_turnaround.png")
     plt.savefig(turnaround_path, dpi=150, bbox_inches="tight")
     print(f"Turnaround plot saved to {turnaround_path}")
     plt.close()
