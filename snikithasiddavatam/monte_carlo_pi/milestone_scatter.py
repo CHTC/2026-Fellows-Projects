@@ -41,4 +41,35 @@ for num_jobs, group in df.groupby("num_jobs"):
     plt.close()
     print(f"Saved {out_path}")
 
+
+# combined scatter plot: all job sizes, colored by num_jobs 
+job_sizes = sorted(df["num_jobs"].unique())
+palette_combined = sns.color_palette("tab10", n_colors=len(job_sizes))
+color_map = dict(zip(job_sizes, palette_combined))
+
+fig, ax = plt.subplots(figsize=(10, 6))
+fig.suptitle("Milestone Times — All Job Sizes", fontsize=13, fontweight="bold")
+
+for num_jobs in job_sizes:
+    group = df[df["num_jobs"] == num_jobs]
+    xs, ys = [], []
+    for _, row in group.iterrows():
+        xs.extend(PERCENTILES)
+        ys.extend(row[col] for col in pct_cols)
+    ax.scatter(xs, ys, color=color_map[num_jobs], s=30, alpha=0.6,
+               label=f"{num_jobs} jobs")
+
+ax.set_xlabel("Jobs Completed (%)", fontsize=11)
+ax.set_ylabel("Time from First Job Completion (s)", fontsize=11)
+ax.set_yscale("log")
+ax.set_xticks(PERCENTILES)
+ax.set_xticklabels([f"{p}%" for p in PERCENTILES])
+ax.legend(fontsize=9, loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
+
+plt.tight_layout()
+combined_path = os.path.join(GRAPH_DIR, "milestones_combined.png")
+plt.savefig(combined_path, dpi=150, bbox_inches="tight")
+plt.close()
+print(f"Saved {combined_path}")
+
 print("\nDone.")
