@@ -205,17 +205,112 @@ Each run (cluster) is plotted as a distinct color. The right panel's reference l
 
 ---
 
+### `runtime_graph.py` — Runtime and turnaround plots
+
+Reads all `results.csv` files from `mc_runs/` (the original 100-job experiment directory) and produces two plots:
+
+1. **Runtime plot** (`mc_runs_runtime.png`): cumulative samples N vs. wall-clock time from the first job completion
+2. **Turnaround scatter** (`mc_runs_turnaround.png`): each job's turnaround time (termination − cluster submit) vs. its Job ID
+
+**To run:**
+```
+python runtime_graph.py
+```
+
+Requires `turnaround_s` to be present in `results.csv` (i.e., `aggregate.py` must have been run after the `turnaround_s` column was added).
+
+---
+
+### `make_graphs_<N>.py` — All-in-one aggregate + plot scripts for each job count
+
+Five scripts (`make_graphs_10.py`, `make_graphs_100.py`, `make_graphs_1000.py`, `make_graphs_10000.py`, `make_graphs_100000.py`) each handle a specific job-count experiment end-to-end: they aggregate raw HTCondor output into `results.csv` **and** produce all plots in a single run. The only difference between them is the `BASE_DIR` and `GRAPH_DIR` variables at the top.
+
+| Script | `BASE_DIR` | `GRAPH_DIR` |
+|--------|-----------|------------|
+| `make_graphs_10.py` | `mc_runs_10` | `graphs/10_jobs` |
+| `make_graphs_100.py` | `mc_runs_100` | `graphs/100_jobs` |
+| `make_graphs_1000.py` | `mc_runs_1000` | `graphs/1000_jobs` |
+| `make_graphs_10000.py` | `mc_runs_10000` | `graphs/10000_jobs` |
+| `make_graphs_100000.py` | `mc_runs_100000` | `graphs/100000_jobs` |
+
+**To run (example for 100 jobs):**
+```
+python make_graphs_100.py
+```
+
+**What each script does:**
+1. Aggregates any `run_*` folders in `BASE_DIR` that do not yet have `results.csv` (same logic as `aggregate.py`, but also records `submit_time` and `turnaround_s` per job)
+2. Generates four plots saved under `GRAPH_DIR/`:
+
+| Output file | What it shows |
+|-------------|---------------|
+| `mc_runs_<N>_scatter.png` | Two-panel: π estimate vs. cumulative jobs (left) and log-log convergence vs. total samples (right) |
+| `mc_runs_<N>_runtime.png` | Cumulative samples N vs. wall-clock time from first job completion |
+| `mc_runs_<N>_runtime_jobs.png` | Cumulative jobs completed vs. time from first job completion |
+| `mc_runs_<N>_turnaround.png` | Job turnaround time (termination − cluster submit) vs. Job ID |
+
+**Output CSV columns** (extends `aggregate.py`'s columns with two new fields):
+
+| Column | Description |
+|--------|-------------|
+| `j` | Cumulative job index (1-based) |
+| `job_id` | HTCondor ProcID |
+| `submit_time` | Datetime when the job was submitted |
+| `timestamp` | Datetime when the job terminated |
+| `turnaround_s` | Seconds from cluster submit to job termination |
+| `N` | Total samples accumulated through job j |
+| `pi_est` | Running π estimate |
+| `error` | Absolute error: \|pi_est − π_ref\| |
+
+---
+
+### `milestone_times.py` — Extracts percentile completion times across all job counts
+
+Reads the `results.csv` from every `mc_runs_<N>/` directory and records how long it took to reach each 10% milestone of job completion (10%, 20%, ..., 100%) for each run. Writes a single `milestone_times.csv`.
+
+**To run:**
+```
+python milestone_times.py
+```
+
+**Output:** `milestone_times.csv`
+
+| Column | Description |
+|--------|-------------|
+| `num_jobs` | Total number of jobs in this experiment (10, 100, 1000, 10000, or 100000) |
+| `run_id` | HTCondor ClusterID |
+| `pct_10` … `pct_100` | Seconds from the first job completion to when the Nth percentile of jobs had finished |
+
+**Prerequisite:** All `make_graphs_<N>.py` scripts (or `aggregate.py`) must have been run so that `results.csv` files exist in each `mc_runs_<N>/run_*/` folder.
+
+---
+
+### `milestone_scatter.py` — Plots milestone completion times
+
+Reads `milestone_times.csv` (produced by `milestone_times.py`) and generates four types of plots saved under `graphs/milestones/`:
+
+| Output file | What it shows |
+|-------------|---------------|
+| `milestones_<N>_jobs.png` | Scatter: time-to-milestone per run for a single job count N |
+| `milestones_<N>_jobs_boxplot.png` | Box-and-whisker of those same milestone times across all runs |
+| `milestones_combined.png` | All job sizes overlaid on one scatter (log Y scale) |
+| `milestones_combined_boxplot.png` | Box-and-whisker pooled across all job sizes (log Y scale) |
+
+**To run:**
+```
+python milestone_scatter.py
+```
+
+---
+
 ### `utils.py` — Shared helper
 
-Provides `get_run_folders(BASE_DIR, with_results_csv)`, used by both `aggregate.py` and `graph.py`.
+Provides `get_run_folders(BASE_DIR, with_results_csv)`, used by `aggregate.py`, `graph.py`, and all `make_graphs_<N>.py` scripts.
 
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `BASE_DIR` | `"mc_runs"` | Directory to scan for `run_*` subfolders |
 | `with_results_csv` | `True` | If `True`, only return folders that already contain a `results.csv`; if `False`, return all `run_*` folders regardless |
-
-`aggregate.py` calls it with `with_results_csv=False` (to find runs that still need processing).  
-`graph.py` calls it with `with_results_csv=True` (to find runs that are ready to plot).
 
 ---
 
@@ -232,51 +327,105 @@ Contains a small set of pre-generated output files and a parse test script for v
 
 ## End-to-end workflow
 
+### Single experiment (100 jobs, original workflow)
+
 ```
 1. Submit jobs
-   condor_submit mc_pi.sub
-   # → creates mc_runs/run_<ClusterID>/ with logs and output files
+   condor_submit mc_pi.sub        # queue 100 in mc_pi.sub
+   # → creates run_<ClusterID>/   in the working directory
 
 2. Wait for jobs to complete
-   condor_q          # monitor queue
-   condor_wait mc_runs/run_<ClusterID>/logs/logs/mc_pi.log
+   condor_q
+   condor_wait run_<ClusterID>/logs/logs/mc_pi.log
 
-3. Aggregate results
-   python aggregate.py
-   # → writes mc_runs/run_<ClusterID>/results.csv
+3. Move run folder into the appropriate mc_runs_* directory
+   mv run_<ClusterID> mc_runs_100/
 
-4. Plot
-   python graph.py
-   # → writes all_runs_scatter.png
+4. Aggregate and plot (all-in-one)
+   python make_graphs_100.py
+   # → writes mc_runs_100/run_<ClusterID>/results.csv
+   # → writes graphs/100_jobs/*.png
 ```
 
-To run multiple independent experiments, repeat step 1 as many times as desired. Each submission creates a new `run_<ClusterID>/` folder. `aggregate.py` and `graph.py` will automatically discover and process all of them.
+### Multi-scale experiment (comparing 10 / 100 / 1000 / 10000 / 100000 jobs)
+
+```
+1. Edit mc_pi.sub and change "queue N" for each desired job count, then submit:
+   condor_submit mc_pi.sub   # repeat for each job count
+
+2. After each batch completes, move the run folder:
+   mv run_<ClusterID> mc_runs_<N>/
+
+3. Run the matching make_graphs script for each job count:
+   python make_graphs_10.py
+   python make_graphs_100.py
+   python make_graphs_1000.py
+   python make_graphs_10000.py
+   python make_graphs_100000.py
+   # → writes results.csv and graphs under graphs/<N>_jobs/ for each
+
+4. Extract milestone times across all job counts:
+   python milestone_times.py
+   # → writes milestone_times.csv
+
+5. Plot milestone comparisons:
+   python milestone_scatter.py
+   # → writes graphs/milestones/*.png
+```
+
+To run multiple independent experiments at the same job count, repeat the relevant submit+move+aggregate steps. `make_graphs_<N>.py` automatically discovers all `run_*` folders in `mc_runs_<N>/` and skips any that already have `results.csv`.
 
 ---
 
-## Expected directory layout (after a full run)
+## Expected directory layout (after a full multi-scale run)
 
 ```
 monte_carlo_pi/
-├── mc_pi.py              ← worker script
-├── mc_pi.sub             ← HTCondor submit file
-├── aggregate.py          ← aggregation script
-├── graph.py              ← plotting script
-├── utils.py              ← shared helper
-├── all_runs_scatter.png  ← output plot (created by graph.py)
-├── examples/             ← sample data for testing
-│   ├── output_0.txt
-│   ├── output_1.txt
-│   ├── output_2.txt
-│   ├── output_3.txt
+├── mc_pi.py                  ← worker script
+├── mc_pi.sub                 ← HTCondor submit file (edit "queue N" per experiment)
+├── aggregate.py              ← aggregation script (original, reads mc_runs/)
+├── graph.py                  ← convergence plot script (reads mc_runs/)
+├── runtime_graph.py          ← runtime + turnaround plots (reads mc_runs/)
+├── make_graphs_10.py         ← all-in-one aggregate+plot for 10-job experiments
+├── make_graphs_100.py        ← all-in-one aggregate+plot for 100-job experiments
+├── make_graphs_1000.py       ← all-in-one aggregate+plot for 1000-job experiments
+├── make_graphs_10000.py      ← all-in-one aggregate+plot for 10000-job experiments
+├── make_graphs_100000.py     ← all-in-one aggregate+plot for 100000-job experiments
+├── milestone_times.py        ← extracts percentile completion times → milestone_times.csv
+├── milestone_scatter.py      ← plots milestone_times.csv
+├── milestone_times.csv       ← output of milestone_times.py
+├── utils.py                  ← shared helper
+├── examples/                 ← sample data for testing
+│   ├── output_0.txt … output_3.txt
 │   └── parse_test.py
-└── mc_runs/
-    └── run_<ClusterID>/
-        ├── results.csv   ← written by aggregate.py
-        └── logs/
-            ├── output_0.txt ... output_99.txt
-            └── logs/
-                ├── job_0.out ... job_99.out
-                ├── job_0.err ... job_99.err
-                └── mc_pi.log
+├── graphs/
+│   ├── 10_jobs/
+│   │   ├── mc_runs_10_scatter.png
+│   │   ├── mc_runs_10_runtime.png
+│   │   ├── mc_runs_10_runtime_jobs.png
+│   │   └── mc_runs_10_turnaround.png
+│   ├── 100_jobs/        ← same four plots for 100-job runs
+│   ├── 1000_jobs/       ← same four plots for 1000-job runs
+│   ├── 10000_jobs/      ← same four plots for 10000-job runs
+│   ├── 100000_jobs/     ← same four plots for 100000-job runs
+│   └── milestones/
+│       ├── milestones_10_jobs.png
+│       ├── milestones_10_jobs_boxplot.png
+│       ├── milestones_<N>_jobs.png  (one per job count)
+│       ├── milestones_combined.png
+│       └── milestones_combined_boxplot.png
+├── mc_runs_10/
+│   └── run_<ClusterID>/
+│       ├── results.csv
+│       └── logs/
+│           ├── output_0.txt … output_9.txt
+│           └── logs/
+│               ├── job_0.out … job_9.out
+│               ├── job_0.err … job_9.err
+│               └── mc_pi.log
+├── mc_runs_100/         ← same structure, 100 jobs per run
+├── mc_runs_1000/        ← same structure, 1000 jobs per run
+├── mc_runs_10000/       ← same structure, 10000 jobs per run
+└── mc_runs_100000/      ← same structure, 100000 jobs per run
 ```
+
