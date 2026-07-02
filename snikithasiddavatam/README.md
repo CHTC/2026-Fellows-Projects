@@ -375,6 +375,11 @@ Contains a small set of pre-generated output files and a parse test script for v
 
 To run multiple independent experiments at the same job count, repeat the relevant submit+move+aggregate steps. `make_graphs_<N>.py` automatically discovers all `run_*` folders in `mc_runs_<N>/` and skips any that already have `results.csv`.
 
+> [!WARNING]
+> If running a lot of jobs, the usage may start to impact your user priority relative to others on the system.
+> This in turn leads to reduced throughput because of the fair-share balancing.
+> For "proper" reproducibility at scale, the user priority needs to be reset between runs.
+
 ---
 
 ## Expected directory layout (after a full multi-scale run)
