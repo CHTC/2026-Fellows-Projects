@@ -335,7 +335,7 @@ Contains a small set of pre-generated output files and a parse test script for v
    # → creates run_<ClusterID>/   in the working directory
 
 2. Wait for jobs to complete
-   condor_q
+   condor_watch_q
    condor_wait run_<ClusterID>/logs/logs/mc_pi.log
 
 3. Move run folder into the appropriate mc_runs_* directory
