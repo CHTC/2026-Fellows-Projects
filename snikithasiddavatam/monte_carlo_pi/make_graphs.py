@@ -166,7 +166,7 @@ palette = sns.color_palette("tab10", n_colors=len(all_runs))
 
 fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 fig.suptitle(
-    f"Monte Carlo π Convergence — All Runs ({len(all_runs)} clusters, {int(NUM_JOBS):,} jobs each)",
+    f"Monte Carlo π Convergence — All Runs ({len(all_runs)} clusters, {NUM_JOBS:,} jobs each)",
     fontsize=13, fontweight="bold", y=1.01,
 )
 
