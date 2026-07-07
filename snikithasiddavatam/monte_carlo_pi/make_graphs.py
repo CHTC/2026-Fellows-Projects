@@ -16,6 +16,15 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 NUM_JOBS = sys.argv[1]
+try:
+    NUM_JOBS = int(NUM_JOBS)
+except TypeError:
+    print(f"The <num_jobs> argument must be an integer, not {NUM_JOBS}")
+    exit(1)
+
+if NUM_JOBS <= 0:
+    print(f"The <num_jobs> argument must be a positive integer, not {NUM_JOBS}")
+
 BASE_DIR = f"mc_runs_{NUM_JOBS}"
 GRAPH_DIR = f"graphs/{NUM_JOBS}_jobs"
 PI_REF = 3.14159265358979323846
