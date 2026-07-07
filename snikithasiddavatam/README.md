@@ -221,21 +221,22 @@ Requires `turnaround_s` to be present in `results.csv` (i.e., `aggregate.py` mus
 
 ---
 
-### `make_graphs_<N>.py` — All-in-one aggregate + plot scripts for each job count
+### `make_graphs.py` — All-in-one aggregate + plot script (parameterized by job count)
 
-Five scripts (`make_graphs_10.py`, `make_graphs_100.py`, `make_graphs_1000.py`, `make_graphs_10000.py`, `make_graphs_100000.py`) each handle a specific job-count experiment end-to-end: they aggregate raw HTCondor output into `results.csv` **and** produce all plots in a single run. The only difference between them is the `BASE_DIR` and `GRAPH_DIR` variables at the top.
+Handles any job-count experiment end-to-end: it aggregates raw HTCondor output into `results.csv` **and** produces all plots in a single run. Takes the job count as a command-line argument, which determines `BASE_DIR` (`mc_runs_<N>`) and `GRAPH_DIR` (`graphs/<N>_jobs`). This replaced the earlier per-job-count scripts (`make_graphs_10.py`, `make_graphs_100.py`, etc.), which were identical apart from those two variables.
 
-| Script | `BASE_DIR` | `GRAPH_DIR` |
-|--------|-----------|------------|
-| `make_graphs_10.py` | `mc_runs_10` | `graphs/10_jobs` |
-| `make_graphs_100.py` | `mc_runs_100` | `graphs/100_jobs` |
-| `make_graphs_1000.py` | `mc_runs_1000` | `graphs/1000_jobs` |
-| `make_graphs_10000.py` | `mc_runs_10000` | `graphs/10000_jobs` |
-| `make_graphs_100000.py` | `mc_runs_100000` | `graphs/100000_jobs` |
+**Usage:**
+```
+python make_graphs.py <num_jobs>
+```
+
+| Argument | Description |
+|----------|-------------|
+| `num_jobs` | Job count for the experiment (e.g. `10`, `100`, `1000`, `10000`, `100000`); selects `mc_runs_<num_jobs>/` as input and `graphs/<num_jobs>_jobs/` as output |
 
 **To run (example for 100 jobs):**
 ```
-python make_graphs_100.py
+python make_graphs.py 100
 ```
 
 **What each script does:**
@@ -281,7 +282,7 @@ python milestone_times.py
 | `run_id` | HTCondor ClusterID |
 | `pct_10` … `pct_100` | Seconds from the first job completion to when the Nth percentile of jobs had finished |
 
-**Prerequisite:** All `make_graphs_<N>.py` scripts (or `aggregate.py`) must have been run so that `results.csv` files exist in each `mc_runs_<N>/run_*/` folder.
+**Prerequisite:** `make_graphs.py` (or `aggregate.py`) must have been run for each job count so that `results.csv` files exist in each `mc_runs_<N>/run_*/` folder.
 
 ---
 
@@ -305,7 +306,7 @@ python milestone_scatter.py
 
 ### `utils.py` — Shared helper
 
-Provides `get_run_folders(BASE_DIR, with_results_csv)`, used by `aggregate.py`, `graph.py`, and all `make_graphs_<N>.py` scripts.
+Provides `get_run_folders(BASE_DIR, with_results_csv)`, used by `aggregate.py`, `graph.py`, and `make_graphs.py`.
 
 | Argument | Default | Description |
 |----------|---------|-------------|
@@ -342,7 +343,7 @@ Contains a small set of pre-generated output files and a parse test script for v
    mv run_<ClusterID> mc_runs_100/
 
 4. Aggregate and plot (all-in-one)
-   python make_graphs_100.py
+   python make_graphs.py 100
    # → writes mc_runs_100/run_<ClusterID>/results.csv
    # → writes graphs/100_jobs/*.png
 ```
@@ -356,12 +357,12 @@ Contains a small set of pre-generated output files and a parse test script for v
 2. After each batch completes, move the run folder:
    mv run_<ClusterID> mc_runs_<N>/
 
-3. Run the matching make_graphs script for each job count:
-   python make_graphs_10.py
-   python make_graphs_100.py
-   python make_graphs_1000.py
-   python make_graphs_10000.py
-   python make_graphs_100000.py
+3. Run make_graphs.py for each job count:
+   python make_graphs.py 10
+   python make_graphs.py 100
+   python make_graphs.py 1000
+   python make_graphs.py 10000
+   python make_graphs.py 100000
    # → writes results.csv and graphs under graphs/<N>_jobs/ for each
 
 4. Extract milestone times across all job counts:
@@ -373,7 +374,7 @@ Contains a small set of pre-generated output files and a parse test script for v
    # → writes graphs/milestones/*.png
 ```
 
-To run multiple independent experiments at the same job count, repeat the relevant submit+move+aggregate steps. `make_graphs_<N>.py` automatically discovers all `run_*` folders in `mc_runs_<N>/` and skips any that already have `results.csv`.
+To run multiple independent experiments at the same job count, repeat the relevant submit+move+aggregate steps. `make_graphs.py` automatically discovers all `run_*` folders in `mc_runs_<N>/` and skips any that already have `results.csv`.
 
 > [!WARNING]
 > If running a lot of jobs, the usage may start to impact your user priority relative to others on the system.
@@ -391,11 +392,7 @@ monte_carlo_pi/
 ├── aggregate.py              ← aggregation script (original, reads mc_runs/)
 ├── graph.py                  ← convergence plot script (reads mc_runs/)
 ├── runtime_graph.py          ← runtime + turnaround plots (reads mc_runs/)
-├── make_graphs_10.py         ← all-in-one aggregate+plot for 10-job experiments
-├── make_graphs_100.py        ← all-in-one aggregate+plot for 100-job experiments
-├── make_graphs_1000.py       ← all-in-one aggregate+plot for 1000-job experiments
-├── make_graphs_10000.py      ← all-in-one aggregate+plot for 10000-job experiments
-├── make_graphs_100000.py     ← all-in-one aggregate+plot for 100000-job experiments
+├── make_graphs.py            ← all-in-one aggregate+plot, parameterized by job count (e.g. `python make_graphs.py 100`)
 ├── milestone_times.py        ← extracts percentile completion times → milestone_times.csv
 ├── milestone_scatter.py      ← plots milestone_times.csv
 ├── milestone_times.csv       ← output of milestone_times.py
