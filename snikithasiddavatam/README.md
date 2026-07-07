@@ -223,7 +223,7 @@ Requires `turnaround_s` to be present in `results.csv` (i.e., `aggregate.py` mus
 
 ### `make_graphs.py` — All-in-one aggregate + plot script (parameterized by job count)
 
-Handles any job-count experiment end-to-end: it aggregates raw HTCondor output into `results.csv` **and** produces all plots in a single run. Takes the job count as a command-line argument, which determines `BASE_DIR` (`mc_runs_<N>`) and `GRAPH_DIR` (`graphs/<N>_jobs`). This replaced the earlier per-job-count scripts (`make_graphs_10.py`, `make_graphs_100.py`, etc.), which were identical apart from those two variables.
+Handles any job-count experiment end-to-end: it aggregates raw HTCondor output into `results.csv` **and** produces all plots in a single run. Takes the job count as a command-line argument, which determines `BASE_DIR` (`mc_runs_<N>`) and `GRAPH_DIR` (`graphs/<N>_jobs`). 
 
 **Usage:**
 ```
