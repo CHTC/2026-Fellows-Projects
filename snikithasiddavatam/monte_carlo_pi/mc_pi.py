@@ -1,6 +1,7 @@
 import hashlib
 import sys
 import random
+import time
 
 def main():
     # Argument Parsing
@@ -55,6 +56,11 @@ def main():
         f.write(f"pi_estimate={pi_local}\n")
 
     print(f"Job {proc_id}: cluster={cluster_id}, seed={seed}, S={S}, M={M}, pi_local={pi_local:.8f} → wrote {output_filename}")
+
+    #random delay to stagger job completion times (uses the same seeded RNG for reproducibility)
+    delay = rng.uniform(1, 60)
+    print(f"Job {proc_id}: sleeping for {delay:.2f}s before exiting")
+    time.sleep(delay)
 
 if __name__ == "__main__":
     main()
