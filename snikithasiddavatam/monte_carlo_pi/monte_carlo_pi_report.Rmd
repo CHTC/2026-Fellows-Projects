@@ -1,15 +1,18 @@
 ---
 title: "Monte Carlo Estimation of π on HTCondor"
-subtitle: "Understanding Throughput Using a Standardized Workflow"
 author: "Snikitha Siddavatam"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
+  pdf_document:
+    toc: true
+    toc_depth: '3'
   html_document:
     toc: true
     toc_depth: 3
     toc_float: true
     number_sections: true
     theme: flatly
+subtitle: Understanding Throughput Using a Standardized Workflow
 ---
 
 ```{r setup, include=FALSE}
@@ -57,7 +60,7 @@ Each HTCondor job is a self-contained execution unit that:
 - Counts the number of points M satisfying $x^2 + y^2 < 1$
 - Computes a local estimate: $\pi_{local} = 4M/S$
 - Writes a single output file to the Access Point upon completion (the script writes no output if it errors)
-- Sleeps for a random duration (1–60s, seeded reproducibly) before exiting, to stagger completion times
+- Sleeps for a duration (1–60s) **assigned at submit time** before exiting, to stagger completion times (see *Sleep-time assignment* under *Next Steps*)
 
 A job is considered **done** if and only if its output file exists at the
 Access Point *and* there is a corresponding `JOB_TERMINATED` entry for that
@@ -90,10 +93,13 @@ pi_estimate=<4*M/S>
 
 ## Submit file: `mc_pi.sub`
 
-Submits *J* independent jobs to HTCondor (`queue J`), each running
-`mc_pi.py <S> $(Process) $(Cluster)`. Output, error, and log files are
-organized per-cluster under `run_$(Cluster)/logs/`, and result files are
-transferred back and remapped into the same folder.
+Submits *J* independent jobs to HTCondor, each running
+`mc_pi.py <S> $(Process) $(Cluster)`. With submit-side sleep assignment, the
+submit file queues from the pregenerated job-parameter table
+(`queue sleep_time from <table>`) so each job's sleep duration arrives as an
+argument. Output, error, and log files are organized per-cluster under
+`run_$(Cluster)/logs/`, and result files are transferred back and remapped
+into the same folder.
 
 # Pipeline
 
@@ -164,7 +170,37 @@ knitr::include_graphics("graphs/milestones/milestones_100000_jobs.png")
 > reproducible comparisons across scales, user priority should be reset
 > between runs.
 
-# Next Steps: Memory Profiling
+# Next Steps
+
+## Sleep-time assignment: submit-side seed chain
+
+Rather than letting each job pick its own seed for the sleep duration, the
+sleep times are generated **once, on the submit side**, and passed to each job
+as an explicit parameter. This keeps the full experiment under our control and
+makes every run exactly reproducible from a single starting seed.
+
+The seeds form a deterministic chain via a recurrence:
+
+$$R_i = f(R_{i-1})$$
+
+Starting from a single initial seed $R_0$, the recurrence is applied
+repeatedly to produce one value per job - e.g. 100,000 values for a
+100,000-job run. Each $R_i$ is then mapped to a sleep duration in the 1–60 s
+range and written into a job-parameter table. The submit file iterates over
+this table (`queue sleep_time from <table>`), so each job receives its sleep
+duration as an argument instead of computing it internally.
+
+Why this matters:
+
+- **Control:** the submitter, not the job, decides every sleep time; the
+  experiment's completion-time staggering is fully specified before any job runs.
+- **Reproducibility:** one starting seed $R_0$ regenerates the entire sequence
+  of sleep times, for any number of jobs.
+- **Independence from the sampling seed:** the Monte Carlo sampling seed
+  (derived from `ClusterID`/`ProcID`) and the sleep duration are decoupled, so
+  changing the staggering scheme never perturbs the π estimates.
+
+## Memory Profiling
 
 We observed that users are requesting a lot of memory while running jobs and
 it takes longer for jobs to move through the system.
