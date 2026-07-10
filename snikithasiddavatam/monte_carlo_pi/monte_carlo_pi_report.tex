@@ -204,8 +204,9 @@ Each HTCondor job is a self-contained execution unit that:
   Writes a single output file to the Access Point upon completion (the
   script writes no output if it errors)
 \item
-  Sleeps for a random duration (1--60s, seeded reproducibly) before
-  exiting, to stagger completion times
+  Sleeps for a duration (1--60s) \textbf{assigned at submit time} before
+  exiting, to stagger completion times (see \emph{Sleep-time assignment}
+  under \emph{Next Steps})
 \end{itemize}
 
 A job is considered \textbf{done} if and only if its output file exists
@@ -245,12 +246,14 @@ pi_estimate=<4*M/S>
 \subsection{\texorpdfstring{Submit file:
 \texttt{mc\_pi.sub}}{Submit file: mc\_pi.sub}}\label{submit-file-mc_pi.sub}
 
-Submits \emph{J} independent jobs to HTCondor (\texttt{queue\ J}), each
-running
+Submits \emph{J} independent jobs to HTCondor, each running
 \texttt{mc\_pi.py\ \textless{}S\textgreater{}\ \$(Process)\ \$(Cluster)}.
-Output, error, and log files are organized per-cluster under
-\texttt{run\_\$(Cluster)/logs/}, and result files are transferred back
-and remapped into the same folder.
+With submit-side sleep assignment, the submit file queues from the
+pregenerated job-parameter table
+(\texttt{queue\ sleep\_time\ from\ \textless{}table\textgreater{}}) so
+each job's sleep duration arrives as an argument. Output, error, and log
+files are organized per-cluster under \texttt{run\_\$(Cluster)/logs/},
+and result files are transferred back and remapped into the same folder.
 
 \section{Pipeline}\label{pipeline}
 
@@ -363,8 +366,49 @@ For reproducible comparisons across scales, user priority should be
 reset between runs.
 \end{quote}
 
-\section{Next Steps: Memory
-Profiling}\label{next-steps-memory-profiling}
+\section{Next Steps}\label{next-steps}
+
+\subsection{Sleep-time assignment: submit-side seed
+chain}\label{sleep-time-assignment-submit-side-seed-chain}
+
+Rather than letting each job pick its own seed for the sleep duration,
+the sleep times are generated \textbf{once, on the submit side}, and
+passed to each job as an explicit parameter. This keeps the full
+experiment under our control and makes every run exactly reproducible
+from a single starting seed.
+
+The seeds form a deterministic chain via a recurrence:
+
+\[R_i = f(R_{i-1})\]
+
+Starting from a single initial seed \(R_0\), the recurrence is applied
+repeatedly to produce one value per job - e.g.~100,000 values for a
+100,000-job run. Each \(R_i\) is then mapped to a sleep duration in the
+1--60 s range and written into a job-parameter table. The submit file
+iterates over this table
+(\texttt{queue\ sleep\_time\ from\ \textless{}table\textgreater{}}), so
+each job receives its sleep duration as an argument instead of computing
+it internally.
+
+Why this matters:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Control:} the submitter, not the job, decides every sleep
+  time; the experiment's completion-time staggering is fully specified
+  before any job runs.
+\item
+  \textbf{Reproducibility:} one starting seed \(R_0\) regenerates the
+  entire sequence of sleep times, for any number of jobs.
+\item
+  \textbf{Independence from the sampling seed:} the Monte Carlo sampling
+  seed (derived from \texttt{ClusterID}/\texttt{ProcID}) and the sleep
+  duration are decoupled, so changing the staggering scheme never
+  perturbs the π estimates.
+\end{itemize}
+
+\subsection{Memory Profiling}\label{memory-profiling}
 
 We observed that users are requesting a lot of memory while running jobs
 and it takes longer for jobs to move through the system.

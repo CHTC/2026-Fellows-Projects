@@ -1586,8 +1586,9 @@ y)\)</span> pairs uniformly distributed in <span class="math inline">\([0,1) \ti
 4M/S\)</span></li>
 <li>Writes a single output file to the Access Point upon completion (the
 script writes no output if it errors)</li>
-<li>Sleeps for a random duration (1–60s, seeded reproducibly) before
-exiting, to stagger completion times</li>
+<li>Sleeps for a duration (1–60s) <strong>assigned at submit
+time</strong> before exiting, to stagger completion times (see
+<em>Sleep-time assignment</em> under <em>Next Steps</em>)</li>
 </ul>
 <p>A job is considered <strong>done</strong> if and only if its output
 file exists at the Access Point <em>and</em> there is a corresponding
@@ -1616,10 +1617,12 @@ pi_estimate=&lt;4*M/S&gt;</code></pre>
 <div id="submit-file-mc_pi.sub" class="section level2" number="4.2">
 <h2><span class="header-section-number">4.2</span> Submit file:
 <code>mc_pi.sub</code></h2>
-<p>Submits <em>J</em> independent jobs to HTCondor
-(<code>queue J</code>), each running
-<code>mc_pi.py &lt;S&gt; $(Process) $(Cluster)</code>. Output, error,
-and log files are organized per-cluster under
+<p>Submits <em>J</em> independent jobs to HTCondor, each running
+<code>mc_pi.py &lt;S&gt; $(Process) $(Cluster)</code>. With submit-side
+sleep assignment, the submit file queues from the pregenerated
+job-parameter table (<code>queue sleep_time from &lt;table&gt;</code>)
+so each job’s sleep duration arrives as an argument. Output, error, and
+log files are organized per-cluster under
 <code>run_$(Cluster)/logs/</code>, and result files are transferred back
 and remapped into the same folder.</p>
 </div>
@@ -1746,9 +1749,42 @@ For reproducible comparisons across scales, user priority should be
 reset between runs.</p>
 </blockquote>
 </div>
-<div id="next-steps-memory-profiling" class="section level1" number="9">
-<h1><span class="header-section-number">9</span> Next Steps: Memory
-Profiling</h1>
+<div id="next-steps" class="section level1" number="9">
+<h1><span class="header-section-number">9</span> Next Steps</h1>
+<div id="sleep-time-assignment-submit-side-seed-chain" class="section level2" number="9.1">
+<h2><span class="header-section-number">9.1</span> Sleep-time
+assignment: submit-side seed chain</h2>
+<p>Rather than letting each job pick its own seed for the sleep
+duration, the sleep times are generated <strong>once, on the submit
+side</strong>, and passed to each job as an explicit parameter. This
+keeps the full experiment under our control and makes every run exactly
+reproducible from a single starting seed.</p>
+<p>The seeds form a deterministic chain via a recurrence:</p>
+<p><span class="math display">\[R_i = f(R_{i-1})\]</span></p>
+<p>Starting from a single initial seed <span class="math inline">\(R_0\)</span>, the recurrence is applied repeatedly
+to produce one value per job - e.g. 100,000 values for a 100,000-job
+run. Each <span class="math inline">\(R_i\)</span> is then mapped to a
+sleep duration in the 1–60 s range and written into a job-parameter
+table. The submit file iterates over this table
+(<code>queue sleep_time from &lt;table&gt;</code>), so each job receives
+its sleep duration as an argument instead of computing it
+internally.</p>
+<p>Why this matters:</p>
+<ul>
+<li><strong>Control:</strong> the submitter, not the job, decides every
+sleep time; the experiment’s completion-time staggering is fully
+specified before any job runs.</li>
+<li><strong>Reproducibility:</strong> one starting seed <span class="math inline">\(R_0\)</span> regenerates the entire sequence of
+sleep times, for any number of jobs.</li>
+<li><strong>Independence from the sampling seed:</strong> the Monte
+Carlo sampling seed (derived from
+<code>ClusterID</code>/<code>ProcID</code>) and the sleep duration are
+decoupled, so changing the staggering scheme never perturbs the π
+estimates.</li>
+</ul>
+</div>
+<div id="memory-profiling" class="section level2" number="9.2">
+<h2><span class="header-section-number">9.2</span> Memory Profiling</h2>
 <p>We observed that users are requesting a lot of memory while running
 jobs and it takes longer for jobs to move through the system.
 <strong>Understanding how throughput changes with memory
@@ -1768,6 +1804,7 @@ hour</li>
 GB</strong></li>
 <li>Measure how throughput changes</li>
 </ul>
+</div>
 </div>
 
 
