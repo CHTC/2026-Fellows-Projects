@@ -24,6 +24,7 @@ except TypeError:
 
 if NUM_JOBS <= 0:
     print(f"The <num_jobs> argument must be a positive integer, not {NUM_JOBS}")
+    exit(1)
 
 BASE_DIR = f"mc_runs_{NUM_JOBS}"
 GRAPH_DIR = f"graphs/{NUM_JOBS}_jobs"
