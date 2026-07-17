@@ -304,6 +304,49 @@ python milestone_scatter.py
 
 ---
 
+### `make_memory_graphs.py` — Aggregate + plot for the memory-request experiment
+
+Analyzes how the `request_memory` setting affects throughput and scheduling latency. Reads runs from `memory/mc_runs_10000_mem_<TIER>/` (one folder per memory tier, e.g. `500MB`, `1GB`, ..., `32GB`), aggregates each run into a `results.csv`, and produces comparison plots under `graphs/memory/`.
+
+Each tier folder contains its own copy of `mc_pi.sub`, identical except for `request_memory` (all use 10,000 jobs at S=100 samples per job), plus the `run_<ClusterID>/` folders from 3 independent submissions at that tier.
+
+**To run:**
+```
+python make_memory_graphs.py
+```
+
+**What it does, step by step:**
+1. Discovers all `memory/mc_runs_10000_mem_<TIER>/` folders and sorts tiers by memory size
+2. Aggregates any run lacking a `results.csv` (same logic as `make_graphs.py`, additionally recording first-execution time, queue wait, and HTCondor's reported `MemoryUsage` per job)
+3. Loads all `results.csv` files and generates three plots plus a summary table, colored by tier (viridis, ordered by memory size)
+
+**Output files (saved under `graphs/memory/`):**
+
+| Output file | What it shows |
+|-------------|---------------|
+| `memory_cumulative_jobs.png` | Cumulative jobs completed vs. time since cluster submit, one line per run, colored by memory tier |
+| `memory_latency_box.png` | Two-panel boxplots per tier: turnaround time (submit → termination) and queue wait time (submit → first execution) |
+| `memory_total_completion.png` | Total time for all 10,000 jobs to finish vs. requested memory (log₂ x-axis), one point per run with a median trend line |
+| `memory_summary.csv` | Per-tier medians: turnaround, p90 turnaround, queue wait, and total completion time |
+
+**Output CSV columns** (extends `make_graphs.py`'s columns):
+
+| Column | Description |
+|--------|-------------|
+| `j` | Cumulative job index (1-based, ordered by termination time) |
+| `job_id` | HTCondor ProcID |
+| `submit_time` | Datetime when the job was submitted |
+| `execute_time` | Datetime of the job's first execution |
+| `timestamp` | Datetime when the job terminated |
+| `queue_wait_s` | Seconds from cluster submit to first execution |
+| `turnaround_s` | Seconds from cluster submit to job termination |
+| `memory_usage_mb` | Peak memory usage reported by HTCondor at termination (MB) |
+| `N` | Total samples accumulated through job j |
+| `pi_est` | Running π estimate |
+| `error` | Absolute error: \|pi_est − π_ref\| |
+
+---
+
 ### `utils.py` — Shared helper
 
 Provides `get_run_folders(BASE_DIR, with_results_csv)`, used by `aggregate.py`, `graph.py`, and `make_graphs.py`.
@@ -376,6 +419,22 @@ Contains a small set of pre-generated output files and a parse test script for v
 
 To run multiple independent experiments at the same job count, repeat the relevant submit+move+aggregate steps. `make_graphs.py` automatically discovers all `run_*` folders in `mc_runs_<N>/` and skips any that already have `results.csv`.
 
+### Memory-request experiment (comparing 500MB / 1GB / 2GB / 4GB / 8GB / 16GB / 32GB)
+
+```
+1. For each memory tier, edit request_memory in the tier's copy of mc_pi.sub
+   (memory/mc_runs_10000_mem_<TIER>/mc_pi.sub; queue 10000, S=100) and submit 3 times:
+   condor_submit mc_pi.sub
+
+2. After each batch completes, move the run folder into its tier directory:
+   mv run_<ClusterID> memory/mc_runs_10000_mem_<TIER>/
+
+3. Aggregate and plot all tiers at once:
+   python make_memory_graphs.py
+   # → writes results.csv per run
+   # → writes graphs/memory/*.png and graphs/memory/memory_summary.csv
+```
+
 > [!WARNING]
 > If running a lot of jobs, the usage may start to impact your user priority relative to others on the system.
 > This in turn leads to reduced throughput because of the fair-share balancing.
@@ -396,6 +455,7 @@ monte_carlo_pi/
 ├── milestone_times.py        ← extracts percentile completion times → milestone_times.csv
 ├── milestone_scatter.py      ← plots milestone_times.csv
 ├── milestone_times.csv       ← output of milestone_times.py
+├── make_memory_graphs.py     ← aggregate+plot for the memory-request experiment
 ├── utils.py                  ← shared helper
 ├── examples/                 ← sample data for testing
 │   ├── output_0.txt … output_3.txt
@@ -410,12 +470,17 @@ monte_carlo_pi/
 │   ├── 1000_jobs/       ← same four plots for 1000-job runs
 │   ├── 10000_jobs/      ← same four plots for 10000-job runs
 │   ├── 100000_jobs/     ← same four plots for 100000-job runs
-│   └── milestones/
-│       ├── milestones_10_jobs.png
-│       ├── milestones_10_jobs_boxplot.png
-│       ├── milestones_<N>_jobs.png  (one per job count)
-│       ├── milestones_combined.png
-│       └── milestones_combined_boxplot.png
+│   ├── milestones/
+│   │   ├── milestones_10_jobs.png
+│   │   ├── milestones_10_jobs_boxplot.png
+│   │   ├── milestones_<N>_jobs.png  (one per job count)
+│   │   ├── milestones_combined.png
+│   │   └── milestones_combined_boxplot.png
+│   └── memory/
+│       ├── memory_cumulative_jobs.png
+│       ├── memory_latency_box.png
+│       ├── memory_total_completion.png
+│       └── memory_summary.csv
 ├── mc_runs_10/
 │   └── run_<ClusterID>/
 │       ├── results.csv
@@ -428,6 +493,16 @@ monte_carlo_pi/
 ├── mc_runs_100/         ← same structure, 100 jobs per run
 ├── mc_runs_1000/        ← same structure, 1000 jobs per run
 ├── mc_runs_10000/       ← same structure, 10000 jobs per run
-└── mc_runs_100000/      ← same structure, 100000 jobs per run
+├── mc_runs_100000/      ← same structure, 100000 jobs per run
+└── memory/
+    ├── mc_runs_10000_mem_500MB/
+    │   ├── mc_pi.sub    ← tier-specific submit file (request_memory = 500MB)
+    │   └── run_<ClusterID>/   ← 3 runs, same structure as mc_runs_<N>
+    ├── mc_runs_10000_mem_1GB/
+    ├── mc_runs_10000_mem_2GB/
+    ├── mc_runs_10000_mem_4GB/
+    ├── mc_runs_10000_mem_8GB/
+    ├── mc_runs_10000_mem_16GB/
+    └── mc_runs_10000_mem_32GB/
 ```
 
