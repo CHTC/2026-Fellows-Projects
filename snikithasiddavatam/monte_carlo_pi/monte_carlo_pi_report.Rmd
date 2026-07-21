@@ -1,18 +1,20 @@
 ---
-title: "Monte Carlo Estimation of π on HTCondor"
+title: "Monte Carlo Estimation of $\\pi$ on HTCondor"
 author: "Snikitha Siddavatam"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
+subtitle: "Understanding Throughput Using a Standardized Workflow"
+
 output:
   pdf_document:
+    latex_engine: xelatex
     toc: true
-    toc_depth: '3'
+    toc_depth: 3
   html_document:
     toc: true
     toc_depth: 3
     toc_float: true
     number_sections: true
     theme: flatly
-subtitle: Understanding Throughput Using a Standardized Workflow
 ---
 
 ```{r setup, include=FALSE}
