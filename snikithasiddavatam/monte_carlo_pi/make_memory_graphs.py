@@ -12,8 +12,23 @@ import htcondor2 as htcondor
 from datetime import datetime
 from utils import get_run_folders
 
+if len(sys.argv) != 2:
+    print("Usage: python make_memory_graphs.py <num_jobs>")
+    sys.exit(1)
+
+NUM_JOBS = sys.argv[1]
+try:
+    NUM_JOBS = int(NUM_JOBS)
+except ValueError:
+    print(f"The <num_jobs> argument must be an integer, not {NUM_JOBS}")
+    sys.exit(1)
+
+if NUM_JOBS <= 0:
+    print(f"The <num_jobs> argument must be a positive integer, not {NUM_JOBS}")
+    sys.exit(1)
+
 MEM_DIR   = "memory"
-GRAPH_DIR = "graphs/memory"
+GRAPH_DIR = f"graphs/memory_{NUM_JOBS}"
 PI_REF    = 3.14159265358979323846
 
 os.makedirs(GRAPH_DIR, exist_ok=True)
@@ -28,7 +43,7 @@ def tier_to_mb(tier_label):
 
 tier_dirs = {}
 for d in sorted(os.listdir(MEM_DIR)):
-    m = re.fullmatch(r"mc_runs_\d+_mem_(.+)", d)
+    m = re.fullmatch(rf"mc_runs_{NUM_JOBS}_mem_(.+)", d)
     if m and os.path.isdir(os.path.join(MEM_DIR, d)):
         label = m.group(1)
         mb = tier_to_mb(label)
@@ -38,7 +53,7 @@ for d in sorted(os.listdir(MEM_DIR)):
         tier_dirs[label] = {"dir": os.path.join(MEM_DIR, d), "mb": mb}
 
 if not tier_dirs:
-    print(f"Error: no mc_runs_*_mem_* folders found in {MEM_DIR}/")
+    print(f"Error: no mc_runs_{NUM_JOBS}_mem_* folders found in {MEM_DIR}/")
     sys.exit(1)
 
 # sort tiers by memory size
@@ -208,7 +223,7 @@ for (tier, cluster_id), df in all_runs.items():
             linewidth=1.8, alpha=0.85, label=label)
 ax.set_xlabel("Time Since Cluster Submit (s)", fontsize=11)
 ax.set_ylabel("Cumulative Jobs Completed", fontsize=11)
-ax.set_title("10,000 jobs per run, 3 runs per memory request", fontsize=11)
+ax.set_title(f"{NUM_JOBS:,} jobs per run, 3 runs per memory request", fontsize=11)
 handles, labels = ax.get_legend_handles_labels()
 order = [labels.index(t) for t in tier_order if t in labels]
 ax.legend([handles[i] for i in order], [labels[i] for i in order],
@@ -282,7 +297,7 @@ ax.set_xscale("log", base=2)
 ax.set_xticks(mk_df["mb"].unique())
 ax.set_xticklabels(tier_order, rotation=0)
 ax.set_xlabel("request_memory", fontsize=11)
-ax.set_ylabel("Time for All 10,000 Jobs to Finish (s)", fontsize=11)
+ax.set_ylabel(f"Time for All {NUM_JOBS:,} Jobs to Finish (s)", fontsize=11)
 ax.set_title("One point per run (3 runs per memory request)", fontsize=11)
 ax.legend(fontsize=9, loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
 plt.tight_layout()
