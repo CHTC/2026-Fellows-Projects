@@ -1,0 +1,202 @@
+---
+title: "Memory Request Simulator"
+author: "Snikitha Siddavatam"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+subtitle: "How request_memory Changes Job Throughput"
+output:
+  html_document:
+    toc: false
+    theme: flatly
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(dplyr)
+library(purrr)
+library(plotly)
+library(crosstalk)
+```
+
+Drag the slider to pick a `request_memory` value and watch how job throughput
+for that memory tier compares to the rest. All data below is real: 1,000
+HTCondor jobs (S = 10,000 samples each), submitted 3 times at each of 8 memory
+requests from 500 MB to 64 GB, with `mc_pi.py` otherwise unchanged across runs.
+
+```{r load-data}
+tiers  <- c("500MB", "1GB", "2GB", "4GB", "8GB", "16GB", "32GB", "64GB")
+mb_map <- c("500MB" = 500, "1GB" = 1024, "2GB" = 2048, "4GB" = 4096,
+            "8GB" = 8192, "16GB" = 16384, "32GB" = 32768, "64GB" = 65536)
+
+read_tier <- function(tier, tier_idx) {
+  base <- file.path("memory", paste0("mc_runs_1000_mem_", tier))
+  run_dirs <- list.dirs(base, recursive = FALSE)
+  run_dirs <- run_dirs[grepl("^run_", basename(run_dirs))]
+  purrr::map_dfr(run_dirs, function(rd) {
+    f <- file.path(rd, "results.csv")
+    if (!file.exists(f)) return(NULL)
+    df <- read.csv(f)
+    df$run <- basename(rd)
+    df
+  }) %>%
+    mutate(mb = mb_map[[tier]], tier = tier, tier_idx = tier_idx)
+}
+
+long_df <- purrr::imap_dfr(tiers, ~ read_tier(.x, .y - 1)) %>%
+  group_by(tier) %>%
+  mutate(run_label = paste("run", dense_rank(run))) %>%
+  ungroup()
+
+summary_df <- long_df %>%
+  group_by(tier, tier_idx, mb) %>%
+  summarise(
+    median_turnaround_s  = median(turnaround_s, na.rm = TRUE),
+    p90_turnaround_s     = quantile(turnaround_s, 0.9, na.rm = TRUE),
+    median_queue_wait_s  = median(queue_wait_s, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    long_df %>%
+      group_by(tier, run) %>%
+      summarise(total_time_s = max(turnaround_s, na.rm = TRUE), .groups = "drop") %>%
+      group_by(tier) %>%
+      summarise(median_total_time_s = median(total_time_s), .groups = "drop"),
+    by = "tier"
+  ) %>%
+  arrange(mb)
+
+long_shared <- SharedData$new(long_df, key = ~tier_idx, group = "mem")
+```
+
+## Pick a memory request
+
+<style>
+#tier-slider-wrap { max-width: 720px; margin: 1.2em 0 1.6em; }
+#tier-slider-wrap .tier-readout {
+  font-size: 1.15em; font-weight: 600; color: #0b0b0b;
+  margin-bottom: 0.4em;
+}
+#tier-slider-wrap .tier-readout span { color: #2a78d6; }
+#tier-range {
+  width: 100%; -webkit-appearance: none; appearance: none;
+  height: 4px; border-radius: 2px; background: #e1e0d9; outline: none;
+}
+#tier-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #2a78d6; border: 2px solid #fcfcfb;
+  box-shadow: 0 0 0 1px rgba(11,11,11,0.10); cursor: pointer;
+}
+#tier-range::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #2a78d6; border: 2px solid #fcfcfb;
+  box-shadow: 0 0 0 1px rgba(11,11,11,0.10); cursor: pointer;
+}
+#tier-slider-wrap .tier-ticks {
+  display: flex; justify-content: space-between;
+  font-size: 0.8em; color: #52514e; margin-top: 0.4em;
+}
+</style>
+
+<div id="tier-slider-wrap">
+  <div class="tier-readout">request_memory: <span id="tier-readout-value">500MB</span></div>
+  <input type="range" id="tier-range" min="0" max="7" step="1" value="0">
+  <div class="tier-ticks">
+```{r slider-legend, results='asis'}
+cat(paste0("<span>", tiers, "</span>", collapse = "\n"))
+```
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var tierNames = ["500MB","1GB","2GB","4GB","8GB","16GB","32GB","64GB"];
+  var range = document.getElementById("tier-range");
+  var readout = document.getElementById("tier-readout-value");
+  var handle = new crosstalk.FilterHandle("mem");
+
+  function apply(idx) {
+    readout.textContent = tierNames[idx];
+    handle.set([String(idx)]);
+
+    var overview = document.getElementById("overview-plot");
+    if (overview && window.Plotly) {
+      var sizes  = tierNames.map(function(_, i) { return i === idx ? 16 : 8; });
+      var colors = tierNames.map(function(_, i) { return i === idx ? "#2a78d6" : "#c3c2b7"; });
+      Plotly.restyle(overview, { "marker.size": [sizes], "marker.color": [colors] }, [0]);
+    }
+  }
+
+  range.addEventListener("input", function() { apply(+range.value); });
+  apply(+range.value);
+});
+</script>
+
+
+## Where this tier sits in the overall trend
+
+Every tier's median total completion time, for context — the highlighted point
+tracks the slider.
+
+```{r overview-plot, fig.height=4}
+plot_ly(elementId = "overview-plot") %>%
+  add_trace(
+    data = summary_df, x = ~mb, y = ~median_total_time_s,
+    type = "scatter", mode = "lines+markers",
+    line = list(color = "#c3c2b7", width = 2),
+    marker = list(color = rep("#c3c2b7", nrow(summary_df)),
+                  size = rep(8, nrow(summary_df)),
+                  line = list(color = "#fcfcfb", width = 2)),
+    hoverinfo = "text",
+    text = ~paste0(tier, ": ", round(median_total_time_s), "s median total time"),
+    showlegend = FALSE
+  ) %>%
+  layout(
+    xaxis = list(title = "request_memory", type = "log",
+                 tickvals = unname(mb_map), ticktext = names(mb_map)),
+    yaxis = list(title = "Median time for all 1,000 jobs to finish (s)"),
+    margin = list(t = 10)
+  )
+```
+
+## Throughput for the selected tier
+
+Cumulative jobs completed vs. time since cluster submit, for each of the 3
+runs at the selected `request_memory`.
+
+```{r throughput-plot, fig.height=5}
+plot_ly(
+  long_shared, x = ~turnaround_s, y = ~j, color = ~run_label,
+  colors = c("#9ec5f4", "#3987e5", "#0d366b"),
+  type = "scatter", mode = "lines", line = list(width = 2),
+  hoverinfo = "text",
+  text = ~paste0(tier, " ", run_label, ": ", round(turnaround_s, 1), "s — ", j, " jobs done")
+) %>%
+  layout(
+    xaxis = list(title = "Time since cluster submit (s)"),
+    yaxis = list(title = "Cumulative jobs completed", range = c(0, 1000)),
+    legend = list(title = list(text = "run")),
+    margin = list(t = 10)
+  )
+```
+
+## Per-job latency for the selected tier
+
+Turnaround (submit → termination) and queue wait (submit → first execution),
+pooled across the 3 runs at the selected `request_memory` — quartiles
+recompute live as you move the slider.
+
+```{r latency-plot, fig.height=4.5}
+p_turn <- plot_ly(
+  long_shared, y = ~turnaround_s, type = "box", boxpoints = FALSE,
+  name = "Turnaround (s)",
+  fillcolor = "rgba(42,120,214,0.15)", line = list(color = "#2a78d6")
+)
+p_wait <- plot_ly(
+  long_shared, y = ~queue_wait_s, type = "box", boxpoints = FALSE,
+  name = "Queue wait (s)",
+  fillcolor = "rgba(42,120,214,0.15)", line = list(color = "#2a78d6")
+)
+subplot(p_turn, p_wait, nrows = 1, titleY = TRUE, margin = 0.06) %>%
+  layout(margin = list(t = 10))
+```
