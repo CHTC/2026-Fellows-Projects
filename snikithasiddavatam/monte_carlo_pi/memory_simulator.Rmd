@@ -15,7 +15,6 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(dplyr)
 library(purrr)
 library(plotly)
-library(crosstalk)
 ```
 
 Drag the slider to pick a `request_memory` value and watch how job throughput
@@ -44,7 +43,10 @@ read_tier <- function(tier, tier_idx) {
 
 long_df <- purrr::imap_dfr(tiers, ~ read_tier(.x, .y - 1)) %>%
   group_by(tier) %>%
-  mutate(run_label = paste("run", dense_rank(run))) %>%
+  mutate(run_num = dense_rank(run)) %>%
+  group_by(tier, run) %>%
+  arrange(turnaround_s, .by_group = TRUE) %>%
+  mutate(cum_jobs = row_number()) %>%
   ungroup()
 
 summary_df <- long_df %>%
@@ -65,7 +67,9 @@ summary_df <- long_df %>%
   ) %>%
   arrange(mb)
 
-long_shared <- SharedData$new(long_df, key = ~tier_idx, group = "mem")
+n_tiers <- length(tiers)
+n_runs  <- 3
+run_colors <- c("#9ec5f4", "#3987e5", "#0d366b")
 ```
 
 ## Pick a memory request
@@ -109,27 +113,77 @@ cat(paste0("<span>", tiers, "</span>", collapse = "\n"))
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", function() {
+(function() {
   var tierNames = ["500MB","1GB","2GB","4GB","8GB","16GB","32GB","64GB"];
-  var range = document.getElementById("tier-range");
-  var readout = document.getElementById("tier-readout-value");
-  var handle = new crosstalk.FilterHandle("mem");
+  var N_TIERS = 8, N_RUNS = 3;
+
+  function plotReady(id) {
+    var el = document.getElementById(id);
+    return (el && el.data && window.Plotly) ? el : null;
+  }
 
   function apply(idx) {
-    readout.textContent = tierNames[idx];
-    handle.set([String(idx)]);
+    var readout = document.getElementById("tier-readout-value");
+    if (readout) readout.textContent = tierNames[idx];
 
-    var overview = document.getElementById("overview-plot");
-    if (overview && window.Plotly) {
-      var sizes  = tierNames.map(function(_, i) { return i === idx ? 16 : 8; });
-      var colors = tierNames.map(function(_, i) { return i === idx ? "#2a78d6" : "#c3c2b7"; });
+    // Overview: enlarge + recolor the selected tier's point.
+    var overview = plotReady("overview-plot");
+    if (overview) {
+      var sizes  = [], colors = [];
+      for (var i = 0; i < N_TIERS; i++) {
+        sizes.push(i === idx ? 16 : 8);
+        colors.push(i === idx ? "#2a78d6" : "#c3c2b7");
+      }
       Plotly.restyle(overview, { "marker.size": [sizes], "marker.color": [colors] }, [0]);
+    }
+
+    // Throughput: traces are ordered tier 0..7, 3 runs each.
+    var throughput = plotReady("throughput-plot");
+    if (throughput) {
+      var visT = [];
+      for (var t = 0; t < N_TIERS * N_RUNS; t++) {
+        visT.push(Math.floor(t / N_RUNS) === idx);
+      }
+      Plotly.restyle(throughput, { visible: visT });
+    }
+
+    // Latency: traces 0..7 = turnaround boxes, 8..15 = queue-wait boxes.
+    var latency = plotReady("latency-plot");
+    if (latency) {
+      var visL = [];
+      for (var b = 0; b < 2 * N_TIERS; b++) {
+        visL.push(b % N_TIERS === idx);
+      }
+      Plotly.restyle(latency, { visible: visL });
     }
   }
 
-  range.addEventListener("input", function() { apply(+range.value); });
-  apply(+range.value);
-});
+  function init() {
+    var range = document.getElementById("tier-range");
+    if (!range) return;
+    range.addEventListener("input", function() { apply(+range.value); });
+
+    // Plots render after DOMContentLoaded; retry until they exist, then sync
+    // to the slider's current position (browsers can restore it on reload).
+    var tries = 0;
+    var timer = setInterval(function() {
+      tries++;
+      if (plotReady("overview-plot") && plotReady("throughput-plot") &&
+          plotReady("latency-plot")) {
+        clearInterval(timer);
+        apply(+range.value);
+      } else if (tries > 100) {
+        clearInterval(timer);
+      }
+    }, 100);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
 </script>
 
 
@@ -139,13 +193,15 @@ Every tier's median total completion time, for context — the highlighted point
 tracks the slider.
 
 ```{r overview-plot, fig.height=4}
-plot_ly(elementId = "overview-plot") %>%
+init_sizes  <- c(16, rep(8, n_tiers - 1))
+init_colors <- c("#2a78d6", rep("#c3c2b7", n_tiers - 1))
+
+ov <- plot_ly() %>%
   add_trace(
     data = summary_df, x = ~mb, y = ~median_total_time_s,
     type = "scatter", mode = "lines+markers",
     line = list(color = "#c3c2b7", width = 2),
-    marker = list(color = rep("#c3c2b7", nrow(summary_df)),
-                  size = rep(8, nrow(summary_df)),
+    marker = list(color = init_colors, size = init_sizes,
                   line = list(color = "#fcfcfb", width = 2)),
     hoverinfo = "text",
     text = ~paste0(tier, ": ", round(median_total_time_s), "s median total time"),
@@ -157,6 +213,8 @@ plot_ly(elementId = "overview-plot") %>%
     yaxis = list(title = "Median time for all 1,000 jobs to finish (s)"),
     margin = list(t = 10)
   )
+ov$elementId <- "overview-plot"
+ov
 ```
 
 ## Throughput for the selected tier
@@ -165,38 +223,65 @@ Cumulative jobs completed vs. time since cluster submit, for each of the 3
 runs at the selected `request_memory`.
 
 ```{r throughput-plot, fig.height=5}
-plot_ly(
-  long_shared, x = ~turnaround_s, y = ~j, color = ~run_label,
-  colors = c("#9ec5f4", "#3987e5", "#0d366b"),
-  type = "scatter", mode = "lines", line = list(width = 2),
-  hoverinfo = "text",
-  text = ~paste0(tier, " ", run_label, ": ", round(turnaround_s, 1), "s — ", j, " jobs done")
-) %>%
+p <- plot_ly()
+for (ti in seq_len(n_tiers) - 1) {
+  for (r in seq_len(n_runs)) {
+    d <- long_df %>% filter(tier_idx == ti, run_num == r)
+    p <- add_trace(
+      p, x = d$turnaround_s, y = d$cum_jobs,
+      type = "scatter", mode = "lines",
+      line = list(width = 2, color = run_colors[r]),
+      name = paste("run", r),
+      visible = (ti == 0),
+      hoverinfo = "text",
+      text = paste0(d$tier, " run ", r, ": ", round(d$turnaround_s, 1),
+                    "s — ", d$cum_jobs, " jobs done")
+    )
+  }
+}
+p <- p %>%
   layout(
     xaxis = list(title = "Time since cluster submit (s)"),
     yaxis = list(title = "Cumulative jobs completed", range = c(0, 1000)),
     legend = list(title = list(text = "run")),
     margin = list(t = 10)
   )
+p$elementId <- "throughput-plot"
+p
 ```
 
 ## Per-job latency for the selected tier
 
 Turnaround (submit → termination) and queue wait (submit → first execution),
 pooled across the 3 runs at the selected `request_memory` — quartiles
-recompute live as you move the slider.
+recompute as you move the slider.
 
 ```{r latency-plot, fig.height=4.5}
-p_turn <- plot_ly(
-  long_shared, y = ~turnaround_s, type = "box", boxpoints = FALSE,
-  name = "Turnaround (s)",
-  fillcolor = "rgba(42,120,214,0.15)", line = list(color = "#2a78d6")
-)
-p_wait <- plot_ly(
-  long_shared, y = ~queue_wait_s, type = "box", boxpoints = FALSE,
-  name = "Queue wait (s)",
-  fillcolor = "rgba(42,120,214,0.15)", line = list(color = "#2a78d6")
-)
-subplot(p_turn, p_wait, nrows = 1, titleY = TRUE, margin = 0.06) %>%
+box_style <- list(fillcolor = "rgba(42,120,214,0.15)",
+                  line = list(color = "#2a78d6"))
+
+p_turn <- plot_ly()
+for (ti in seq_len(n_tiers) - 1) {
+  d <- long_df %>% filter(tier_idx == ti)
+  p_turn <- add_trace(
+    p_turn, y = d$turnaround_s, type = "box", boxpoints = FALSE,
+    name = "Turnaround (s)", visible = (ti == 0), showlegend = FALSE,
+    fillcolor = box_style$fillcolor, line = box_style$line
+  )
+}
+
+p_wait <- plot_ly()
+for (ti in seq_len(n_tiers) - 1) {
+  d <- long_df %>% filter(tier_idx == ti)
+  p_wait <- add_trace(
+    p_wait, y = d$queue_wait_s, type = "box", boxpoints = FALSE,
+    name = "Queue wait (s)", visible = (ti == 0), showlegend = FALSE,
+    fillcolor = box_style$fillcolor, line = box_style$line
+  )
+}
+
+lat <- subplot(p_turn, p_wait, nrows = 1, titleY = TRUE, margin = 0.06) %>%
   layout(margin = list(t = 10))
+lat$elementId <- "latency-plot"
+lat
 ```
