@@ -105,3 +105,73 @@ the pool's throughput behavior changes. Because the workload's statistical
 behavior is known exactly, the same workflow doubles as an end-to-end
 validation harness: if the error curve does not fall at $1/\sqrt{N}$, something
 in the pipeline, not the pool, is wrong.
+
+# Project Deliverables
+
+The project delivers a complete, rerunnable benchmark workflow built around a
+small set of scripts. The workload itself consists of `mc_pi.py`, which draws
+$S = 10{,}000$ samples per job using a seed derived uniquely from the HTCondor
+cluster and process IDs, and `mc_pi.sub`, the submit description that fixes
+identical CPU, memory, disk, and clock-time requests for every job in an
+experiment. On the analysis side, `aggregate.py` cross-references each job's
+output file against the HTCondor event log so that only verifiably completed
+jobs (output present *and* a matching `JOB_TERMINATED` entry) are counted, and
+orders completions chronologically to build the cumulative sample count $N$.
+A family of plotting scripts (`make_graphs.py`, `runtime_graph.py`,
+`milestone_times.py`, `milestone_scatter.py`, and `make_memory_graphs.py`)
+turns the aggregated results into convergence, runtime, turnaround, milestone,
+and memory-sweep figures.
+
+Beyond the scripts, the deliverables include the measured datasets and figures
+themselves: complete runs at $J = 10$, 100, 1,000, 10,000, and 100,000 jobs
+with per-scale runtime, turnaround, and completion-scatter plots; cross-scale
+milestone comparisons recording when each 10% completion milestone was
+reached; and a memory sweep varying `request_memory` from 500 MB to 64 GB on
+an otherwise identical 1,000-job workload. A companion simulator
+(`memory_simulator.Rmd`) models how memory requests shrink the set of
+matchable machines, allowing the measured throughput losses to be compared
+against a simple analytical expectation. Links to all scripts and figures are
+provided at the end of this report.
+
+# Project Outcome
+
+The project achieved its central goal: throughput on the pool is no longer a
+vague intuition but a set of measured curves. The runs confirm that the
+workflow scales cleanly across five orders of magnitude in job count, that the
+error of the $\pi$ estimate falls at the expected $1/\sqrt{N}$ rate (validating
+the pipeline end to end), and that completion-time behavior at each scale can
+be summarized in reproducible milestone charts. The memory sweep quantifies
+the cost of over-requesting: inflating `request_memory` for an identical
+workload measurably delays completion by shrinking the set of machines a job
+can match, giving concrete evidence for the standard facilitation advice to
+request only what a job actually needs.
+
+The practical impact is twofold. For pool users, the results translate
+directly into guidance on sizing job counts and resource requests so that
+workloads finish sooner. For facilitators, the workflow is a standardized
+instrument: because every job is identical and statistically well understood,
+it can be rerun at any time to observe how the pool's throughput behavior has
+changed, with the known convergence rate serving as a built-in correctness
+check.
+
+# Shortcomings and Limitations
+
+The largest caveat is that the pool is a shared, non-stationary system, and
+the experiments only partially control for that. Fair-share priority drifts as
+large runs consume resources, so a 100,000-job run experiences different
+scheduling conditions than the 10-job run it is compared against; without
+resetting priority between experiments (which requires administrator action),
+cross-scale comparisons carry some confounding from the user's own submission
+history. Each configuration was also measured over a limited number of runs at
+particular times of day, so the curves capture the pool's behavior during
+those windows rather than a long-run average across varying background load.
+
+The results are likewise specific to this workload and this pool. Jobs here
+are short, CPU-light, and transfer almost no data, so the conclusions say
+little about workloads dominated by long runtimes, large input transfers, or
+GPU requests, and the measured memory-request penalties depend on this pool's
+particular mix of machine sizes. Finally, the workflow observes the scheduler
+from the outside: it can measure *that* throughput changes with scale and
+memory requests, but it cannot attribute those changes to specific scheduler
+decisions without access to pool-side logs, which was outside the scope of
+this project.
