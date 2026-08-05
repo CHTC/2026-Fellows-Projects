@@ -175,3 +175,75 @@ from the outside: it can measure *that* throughput changes with scale and
 memory requests, but it cannot attribute those changes to specific scheduler
 decisions without access to pool-side logs, which was outside the scope of
 this project.
+
+# Recommendations for Next Phase of Project
+
+The most valuable next step is to turn the workflow from a one-time experiment
+into a recurring instrument. Because every run is identical and self-validating,
+the center could schedule the benchmark to run automatically (for example,
+weekly at a fixed job count and memory request) and archive the milestone
+curves over time, building a longitudinal picture of pool throughput that no
+single measurement window can provide. Pairing those recurring runs with a
+fair-share priority reset, coordinated with pool administrators, would remove
+the largest confound identified in this project and make cross-scale
+comparisons genuinely apples-to-apples.
+
+With another four weeks as a Fellow, I would extend the sweep dimensions
+beyond memory: varying `request_cpus` and `request_disk` the same way
+`request_memory` was varied would complete the picture of how each resource
+request shapes matchability, and adding a controlled input-transfer payload
+would test whether the conclusions hold for data-heavier workloads. I would
+also close the attribution gap by requesting access to pool-side scheduler
+logs, so that observed throughput changes could be tied to specific matching
+and decisions rather than inferred from the outside.
+
+# Lessons Learned
+
+## Project
+
+The deliverables and their limitations point to a single underlying truth: on
+a shared pool, the workload is the easy part and the *system* is the
+experiment. A statistically trivial job like Monte Carlo $\pi$ becomes
+scientifically useful precisely because it is boring: with the estimator's
+$1/\sqrt{N}$ behavior known exactly, every surprise in the data can be
+attributed to the scheduler, the pool, or the pipeline rather than the
+workload. Any Fellow doing this project would also learn that correctness at
+scale is a bookkeeping problem before it is a statistics problem: at 100,000
+jobs, deciding what counts as a "completed job" (output file present *and* a
+matching log entry) matters more than any downstream analysis.
+
+The second broad lesson is that reproducibility on an HTC system must be
+designed in from the submit side. Seeds, sleep durations, and resource
+requests all had to be fixed or derivable before any job started, because
+anything left to per-job chance becomes unrecoverable noise across tens of
+thousands of jobs. Conversely, some things cannot be controlled from the user
+side at all, fair-share priority drift chief among them, and recognizing the
+boundary between what an experiment can and cannot hold fixed is itself a
+result.
+
+## Personal
+
+Executing this project gave me working fluency with the full HTCondor
+lifecycle: writing submit descriptions, deriving unique seeds from cluster and
+process IDs, and, most usefully, parsing the HTCondor event log to
+cross-verify completions, a technique I had not needed before and now consider
+essential for any large submission. Debugging the aggregation pipeline at the
+100,000-job scale taught me to distrust file counts alone and to build
+verification into data collection rather than bolting it on afterward.
+
+On the analysis side, I sharpened a practical workflow for scaling studies:
+structuring per-scale runs into parallel directory trees (`mc_runs_10` through
+`mc_runs_100000`), writing plotting scripts that operate uniformly across
+scales, and using R Markdown to keep the analytical model (the memory
+simulator) and the measured results in documents that can be regenerated from
+scratch. Building the simulator alongside the measurements also changed how I
+approach experiments generally: having a simple analytical expectation to
+compare against made it far easier to tell when a measured effect was real and
+when it was an artifact of the pipeline.
+
+# Project Material Links and Descriptions
+
+[`snikithasiddavatam`](https://github.com/CHTC/2026-Fellows-Projects/tree/main/snikithasiddavatam)
+
+- My folder in the Fellows GitHub repository, containing all scripts, submit
+  files, per-scale run directories, generated figures, and this report.

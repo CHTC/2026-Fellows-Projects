@@ -11,7 +11,7 @@
 
 <meta name="author" content="Snikitha Siddavatam" />
 
-<meta name="date" content="2026-07-30" />
+<meta name="date" content="2026-08-04" />
 
 <title>Monte Carlo Estimation of \pi on HTCondor</title>
 
@@ -1501,7 +1501,7 @@ border-radius: 0px;
 <h3 class="subtitle">Understanding Throughput Using a Standardized
 Workflow</h3>
 <h4 class="author">Snikitha Siddavatam</h4>
-<h4 class="date">July 30, 2026</h4>
+<h4 class="date">August 04, 2026</h4>
 
 </div>
 
@@ -1599,6 +1599,166 @@ changes. Because the workload’s statistical behavior is known exactly,
 the same workflow doubles as an end-to-end validation harness: if the
 error curve does not fall at <span class="math inline">\(1/\sqrt{N}\)</span>, something in the pipeline,
 not the pool, is wrong.</p>
+</div>
+<div id="project-deliverables" class="section level1" number="6">
+<h1><span class="header-section-number">6</span> Project
+Deliverables</h1>
+<p>The project delivers a complete, rerunnable benchmark workflow built
+around a small set of scripts. The workload itself consists of
+<code>mc_pi.py</code>, which draws <span class="math inline">\(S =
+10{,}000\)</span> samples per job using a seed derived uniquely from the
+HTCondor cluster and process IDs, and <code>mc_pi.sub</code>, the submit
+description that fixes identical CPU, memory, disk, and clock-time
+requests for every job in an experiment. On the analysis side,
+<code>aggregate.py</code> cross-references each job’s output file
+against the HTCondor event log so that only verifiably completed jobs
+(output present <em>and</em> a matching <code>JOB_TERMINATED</code>
+entry) are counted, and orders completions chronologically to build the
+cumulative sample count <span class="math inline">\(N\)</span>. A family
+of plotting scripts (<code>make_graphs.py</code>,
+<code>runtime_graph.py</code>, <code>milestone_times.py</code>,
+<code>milestone_scatter.py</code>, and
+<code>make_memory_graphs.py</code>) turns the aggregated results into
+convergence, runtime, turnaround, milestone, and memory-sweep
+figures.</p>
+<p>Beyond the scripts, the deliverables include the measured datasets
+and figures themselves: complete runs at <span class="math inline">\(J =
+10\)</span>, 100, 1,000, 10,000, and 100,000 jobs with per-scale
+runtime, turnaround, and completion-scatter plots; cross-scale milestone
+comparisons recording when each 10% completion milestone was reached;
+and a memory sweep varying <code>request_memory</code> from 500 MB to 64
+GB on an otherwise identical 1,000-job workload. A companion simulator
+(<code>memory_simulator.Rmd</code>) models how memory requests shrink
+the set of matchable machines, allowing the measured throughput losses
+to be compared against a simple analytical expectation. Links to all
+scripts and figures are provided at the end of this report.</p>
+</div>
+<div id="project-outcome" class="section level1" number="7">
+<h1><span class="header-section-number">7</span> Project Outcome</h1>
+<p>The project achieved its central goal: throughput on the pool is no
+longer a vague intuition but a set of measured curves. The runs confirm
+that the workflow scales cleanly across five orders of magnitude in job
+count, that the error of the <span class="math inline">\(\pi\)</span>
+estimate falls at the expected <span class="math inline">\(1/\sqrt{N}\)</span> rate (validating the pipeline
+end to end), and that completion-time behavior at each scale can be
+summarized in reproducible milestone charts. The memory sweep quantifies
+the cost of over-requesting: inflating <code>request_memory</code> for
+an identical workload measurably delays completion by shrinking the set
+of machines a job can match, giving concrete evidence for the standard
+facilitation advice to request only what a job actually needs.</p>
+<p>The practical impact is twofold. For pool users, the results
+translate directly into guidance on sizing job counts and resource
+requests so that workloads finish sooner. For facilitators, the workflow
+is a standardized instrument: because every job is identical and
+statistically well understood, it can be rerun at any time to observe
+how the pool’s throughput behavior has changed, with the known
+convergence rate serving as a built-in correctness check.</p>
+</div>
+<div id="shortcomings-and-limitations" class="section level1" number="8">
+<h1><span class="header-section-number">8</span> Shortcomings and
+Limitations</h1>
+<p>The largest caveat is that the pool is a shared, non-stationary
+system, and the experiments only partially control for that. Fair-share
+priority drifts as large runs consume resources, so a 100,000-job run
+experiences different scheduling conditions than the 10-job run it is
+compared against; without resetting priority between experiments (which
+requires administrator action), cross-scale comparisons carry some
+confounding from the user’s own submission history. Each configuration
+was also measured over a limited number of runs at particular times of
+day, so the curves capture the pool’s behavior during those windows
+rather than a long-run average across varying background load.</p>
+<p>The results are likewise specific to this workload and this pool.
+Jobs here are short, CPU-light, and transfer almost no data, so the
+conclusions say little about workloads dominated by long runtimes, large
+input transfers, or GPU requests, and the measured memory-request
+penalties depend on this pool’s particular mix of machine sizes.
+Finally, the workflow observes the scheduler from the outside: it can
+measure <em>that</em> throughput changes with scale and memory requests,
+but it cannot attribute those changes to specific scheduler decisions
+without access to pool-side logs, which was outside the scope of this
+project.</p>
+</div>
+<div id="recommendations-for-next-phase-of-project" class="section level1" number="9">
+<h1><span class="header-section-number">9</span> Recommendations for
+Next Phase of Project</h1>
+<p>The most valuable next step is to turn the workflow from a one-time
+experiment into a recurring instrument. Because every run is identical
+and self-validating, the center could schedule the benchmark to run
+automatically (for example, weekly at a fixed job count and memory
+request) and archive the milestone curves over time, building a
+longitudinal picture of pool throughput that no single measurement
+window can provide. Pairing those recurring runs with a fair-share
+priority reset, coordinated with pool administrators, would remove the
+largest confound identified in this project and make cross-scale
+comparisons genuinely apples-to-apples.</p>
+<p>With another four weeks as a Fellow, I would extend the sweep
+dimensions beyond memory: varying <code>request_cpus</code> and
+<code>request_disk</code> the same way <code>request_memory</code> was
+varied would complete the picture of how each resource request shapes
+matchability, and adding a controlled input-transfer payload would test
+whether the conclusions hold for data-heavier workloads. I would also
+close the attribution gap by requesting access to pool-side scheduler
+logs, so that observed throughput changes could be tied to specific
+matching and preemption decisions rather than inferred from the
+outside.</p>
+</div>
+<div id="lessons-learned" class="section level1" number="10">
+<h1><span class="header-section-number">10</span> Lessons Learned</h1>
+<div id="project" class="section level2" number="10.1">
+<h2><span class="header-section-number">10.1</span> Project</h2>
+<p>The deliverables and their limitations point to a single underlying
+truth: on a shared pool, the workload is the easy part and the
+<em>system</em> is the experiment. A statistically trivial job like
+Monte Carlo <span class="math inline">\(\pi\)</span> becomes
+scientifically useful precisely because it is boring: with the
+estimator’s <span class="math inline">\(1/\sqrt{N}\)</span> behavior
+known exactly, every surprise in the data can be attributed to the
+scheduler, the pool, or the pipeline rather than the workload. Any
+Fellow doing this project would also learn that correctness at scale is
+a bookkeeping problem before it is a statistics problem: at 100,000
+jobs, deciding what counts as a “completed job” (output file present
+<em>and</em> a matching log entry) matters more than any downstream
+analysis.</p>
+<p>The second broad lesson is that reproducibility on an HTC system must
+be designed in from the submit side. Seeds, sleep durations, and
+resource requests all had to be fixed or derivable before any job
+started, because anything left to per-job chance becomes unrecoverable
+noise across tens of thousands of jobs. Conversely, some things cannot
+be controlled from the user side at all, fair-share priority drift chief
+among them, and recognizing the boundary between what an experiment can
+and cannot hold fixed is itself a result.</p>
+</div>
+<div id="personal" class="section level2" number="10.2">
+<h2><span class="header-section-number">10.2</span> Personal</h2>
+<p>Executing this project gave me working fluency with the full HTCondor
+lifecycle: writing submit descriptions, deriving unique seeds from
+cluster and process IDs, and, most usefully, parsing the HTCondor event
+log to cross-verify completions, a technique I had not needed before and
+now consider essential for any large submission. Debugging the
+aggregation pipeline at the 100,000-job scale taught me to distrust file
+counts alone and to build verification into data collection rather than
+bolting it on afterward.</p>
+<p>On the analysis side, I sharpened a practical workflow for scaling
+studies: structuring per-scale runs into parallel directory trees
+(<code>mc_runs_10</code> through <code>mc_runs_100000</code>), writing
+plotting scripts that operate uniformly across scales, and using R
+Markdown to keep the analytical model (the memory simulator) and the
+measured results in documents that can be regenerated from scratch.
+Building the simulator alongside the measurements also changed how I
+approach experiments generally: having a simple analytical expectation
+to compare against made it far easier to tell when a measured effect was
+real and when it was an artifact of the pipeline.</p>
+</div>
+</div>
+<div id="project-material-links-and-descriptions" class="section level1" number="11">
+<h1><span class="header-section-number">11</span> Project Material Links
+and Descriptions</h1>
+<p><a href="https://github.com/CHTC/2026-Fellows-Projects/tree/main/snikithasiddavatam"><code>snikithasiddavatam</code></a></p>
+<ul>
+<li>My folder in the Fellows GitHub repository, containing all scripts,
+submit files, per-scale run directories, generated figures, and this
+report.</li>
+</ul>
 </div>
 
 
