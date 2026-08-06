@@ -94,7 +94,7 @@ starting seed rather than chosen independently by each job.
 
 # Project Vision
 
-The goal is a reusable, fully reproducible benchmark workflow that turns vague
+The goal is to turn vague
 intuitions about HTC throughput into measured curves: how fast jobs move
 through the system at each scale, when each 10% completion milestone is
 reached, and how much throughput is lost when memory requests are inflated.
