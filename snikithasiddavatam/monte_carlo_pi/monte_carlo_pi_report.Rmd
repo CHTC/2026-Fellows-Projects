@@ -48,7 +48,7 @@ workload.
 
 This project uses Monte Carlo estimation of $\pi$ as a standardized benchmark
 workload for profiling job throughput on HTCondor. We submit $J$ independent
-jobs, each generating a fixed $S = 10{,}000$ samples with a provably unique
+jobs, each generating a fixed $S = 10{,}000$ samples with an effectively unique
 random seed derived from its cluster and process IDs, and accumulate results
 in chronological order of job completion. From each run we measure how the
 absolute error of the $\pi$ estimate decreases as the cumulative sample count
