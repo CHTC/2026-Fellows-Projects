@@ -19,3 +19,4 @@ mc_runs_100000/**/logs/logs/mc_pi.log
 mc_runs_10000/**/logs/logs/mc_pi.log
 mc_run*/mc_pi.sub
 mc_run*/mc_pi.py
+.Rhistory
