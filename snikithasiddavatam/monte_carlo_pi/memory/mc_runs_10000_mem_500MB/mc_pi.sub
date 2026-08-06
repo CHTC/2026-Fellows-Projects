@@ -1,0 +1,15 @@
+shell = python3 mc_pi.py 100 $(Process) $(Cluster)
+
+output              = run_$(Cluster)/logs/logs/job_$(Process).out
+error               = run_$(Cluster)/logs/logs/job_$(Process).err
+log                 = run_$(Cluster)/logs/logs/mc_pi.log
+
+transfer_input_files  = mc_pi.py
+transfer_output_files = output_$(Process).txt
+transfer_output_remaps = "output_$(Process).txt = run_$(Cluster)/logs/output_$(Process).txt"
+
+request_cpus        = 1
+request_memory      = 500MB
+request_disk        = 100MB
+
+queue 10000

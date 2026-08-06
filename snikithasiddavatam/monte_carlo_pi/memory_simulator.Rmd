@@ -1,0 +1,371 @@
+---
+title: "Memory Request Simulator"
+subtitle: "How request_memory Changes Job Throughput"
+output:
+  html_document:
+    toc: false
+    theme: flatly
+    self_contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(dplyr)
+library(purrr)
+library(plotly)
+```
+
+Use the checkboxes in the table to pick `request_memory` tiers — for the
+1,000-job clusters, the 10,000-job clusters, or both — and the plots below
+update to show only what you've checked. All data is real: HTCondor clusters
+of 1,000 and 10,000 `mc_pi.py` jobs, each submitted 3 times at each of 8
+memory requests from 500 MB to 64 GB, with everything else unchanged across
+runs.
+
+```{r load-data}
+tiers  <- c("500MB", "1GB", "2GB", "4GB", "8GB", "16GB", "32GB", "64GB")
+mb_map <- c("500MB" = 500, "1GB" = 1024, "2GB" = 2048, "4GB" = 4096,
+            "8GB" = 8192, "16GB" = 16384, "32GB" = 32768, "64GB" = 65536)
+scales       <- c(1000, 10000)
+scale_labels <- c("1,000 jobs", "10,000 jobs")
+
+read_tier <- function(scale, tier, tier_idx) {
+  base <- file.path("memory", paste0("mc_runs_", scale, "_mem_", tier))
+  run_dirs <- list.dirs(base, recursive = FALSE)
+  run_dirs <- run_dirs[grepl("^run_", basename(run_dirs))]
+  purrr::map_dfr(run_dirs, function(rd) {
+    f <- file.path(rd, "results.csv")
+    if (!file.exists(f)) return(NULL)
+    df <- read.csv(f)
+    df$run <- basename(rd)
+    df
+  }) %>%
+    mutate(mb = mb_map[[tier]], tier = tier, tier_idx = tier_idx,
+           scale = scale, scale_idx = match(scale, scales) - 1)
+}
+
+long_df <- purrr::map_dfr(scales, function(s) {
+  purrr::imap_dfr(tiers, ~ read_tier(s, .x, .y - 1))
+}) %>%
+  group_by(scale, tier) %>%
+  mutate(run_num = dense_rank(run)) %>%
+  group_by(scale, tier, run) %>%
+  arrange(turnaround_s, .by_group = TRUE) %>%
+  mutate(cum_jobs = row_number()) %>%
+  ungroup()
+
+summary_df <- long_df %>%
+  group_by(scale, scale_idx, tier, tier_idx, mb) %>%
+  summarise(.groups = "drop") %>%
+  left_join(
+    long_df %>%
+      group_by(scale, tier, run) %>%
+      summarise(total_time_s = max(turnaround_s, na.rm = TRUE), .groups = "drop") %>%
+      group_by(scale, tier) %>%
+      summarise(median_total_time_s = median(total_time_s), .groups = "drop"),
+    by = c("scale", "tier")
+  ) %>%
+  arrange(scale, mb)
+
+n_tiers  <- length(tiers)
+n_runs   <- 3
+n_scales <- length(scales)
+
+# Categorical palette, one fixed color per tier (validated, light mode).
+tier_colors <- c("#2a78d6", "#eb6834", "#1baf7a", "#eda100",
+                 "#e87ba4", "#008300", "#4a3aa7", "#e34948")
+tier_fills <- vapply(tier_colors, function(hex) {
+  v <- grDevices::col2rgb(hex)
+  sprintf("rgba(%d,%d,%d,0.15)", v[1], v[2], v[3])
+}, character(1))
+
+# Thin the 10,000-point cumulative curves so the self-contained HTML stays
+# small; the step curve is visually identical at ~400 points.
+thin_curve <- function(d, max_pts = 400) {
+  n <- nrow(d)
+  if (n <= max_pts) return(d)
+  d[unique(c(round(seq(1, n, length.out = max_pts)), n)), ]
+}
+
+box_stats <- function(y) {
+  q1 <- unname(quantile(y, 0.25, na.rm = TRUE))
+  q3 <- unname(quantile(y, 0.75, na.rm = TRUE))
+  iqr <- q3 - q1
+  list(q1 = q1, med = median(y, na.rm = TRUE), q3 = q3,
+       lf = min(y[y >= q1 - 1.5 * iqr], na.rm = TRUE),
+       uf = max(y[y <= q3 + 1.5 * iqr], na.rm = TRUE))
+}
+```
+
+## Pick memory requests
+
+Each row is one `request_memory` value; its color swatch matches that tier's
+color in every plot. Check a box to show that tier's runs at that cluster
+size. Median total time is the median (across the 3 runs) of the time for the
+whole cluster to finish.
+
+<style>
+#tier-table { border-collapse: collapse; margin: 1em 0 1.6em; }
+#tier-table th, #tier-table td {
+  border: 1px solid #e1e0d9; padding: 0.45em 0.9em; text-align: center;
+}
+#tier-table th { background: #f9f9f7; font-weight: 600; color: #0b0b0b; }
+#tier-table td.tier-name { text-align: left; font-weight: 600; }
+#tier-table td.num { font-variant-numeric: tabular-nums; text-align: right; }
+#tier-table .swatch {
+  display: inline-block; width: 11px; height: 11px; border-radius: 3px;
+  margin-right: 0.5em; vertical-align: baseline;
+  box-shadow: 0 0 0 1px rgba(11,11,11,0.10);
+}
+#tier-table input[type="checkbox"] {
+  width: 16px; height: 16px; accent-color: #2a78d6; cursor: pointer;
+}
+</style>
+
+```{r tier-table, results='asis'}
+fmt_s <- function(x) format(round(x), big.mark = ",")
+
+wide <- summary_df %>%
+  select(tier, tier_idx, scale_idx, median_total_time_s) %>%
+  tidyr::pivot_wider(names_from = scale_idx, values_from = median_total_time_s,
+                     names_prefix = "s") %>%
+  arrange(tier_idx)
+
+cat('<table id="tier-table">\n<thead>\n',
+    '<tr><th rowspan="2">request_memory</th>',
+    '<th colspan="2">1,000 jobs</th><th colspan="2">10,000 jobs</th></tr>\n',
+    '<tr><th>show</th><th>median total (s)</th>',
+    '<th>show</th><th>median total (s)</th></tr>\n',
+    '</thead>\n<tbody>\n', sep = "")
+
+for (i in seq_len(nrow(wide))) {
+  ti <- wide$tier_idx[i]
+  checked <- if (ti == 0) ' checked' else ''
+  cat(sprintf(paste0(
+    '<tr><td class="tier-name"><span class="swatch" style="background:%s"></span>%s</td>',
+    '<td><input type="checkbox" class="tier-cb" data-scale="0" data-tier="%d"%s></td>',
+    '<td class="num">%s</td>',
+    '<td><input type="checkbox" class="tier-cb" data-scale="1" data-tier="%d"%s></td>',
+    '<td class="num">%s</td></tr>\n'),
+    tier_colors[ti + 1], wide$tier[i],
+    ti, checked, fmt_s(wide$s0[i]),
+    ti, checked, fmt_s(wide$s1[i])))
+}
+cat('</tbody>\n</table>\n')
+```
+
+<script>
+(function() {
+  var N_TIERS = 8, N_RUNS = 3, N_SCALES = 2;
+  var TIER_COLORS = ["#2a78d6","#eb6834","#1baf7a","#eda100",
+                     "#e87ba4","#008300","#4a3aa7","#e34948"];
+
+  function plotReady(id) {
+    var el = document.getElementById(id);
+    return (el && el.data && window.Plotly) ? el : null;
+  }
+
+  function checkedMatrix() {
+    var m = [];
+    for (var s = 0; s < N_SCALES; s++) {
+      m.push(new Array(N_TIERS).fill(false));
+    }
+    document.querySelectorAll(".tier-cb").forEach(function(cb) {
+      m[+cb.dataset.scale][+cb.dataset.tier] = cb.checked;
+    });
+    return m;
+  }
+
+  function apply() {
+    var m = checkedMatrix();
+
+    // Overview: trace 0 = 1,000-job panel, trace 1 = 10,000-job panel.
+    // Checked tiers get their tier color and a larger marker.
+    var overview = plotReady("overview-plot");
+    if (overview) {
+      for (var s = 0; s < N_SCALES; s++) {
+        var sizes = [], colors = [];
+        for (var t = 0; t < N_TIERS; t++) {
+          sizes.push(m[s][t] ? 14 : 8);
+          colors.push(m[s][t] ? TIER_COLORS[t] : "#c3c2b7");
+        }
+        Plotly.restyle(overview, { "marker.size": [sizes],
+                                   "marker.color": [colors] }, [s]);
+      }
+    }
+
+    // Throughput: traces ordered scale-major — scale 0 tiers 0..7 x 3 runs,
+    // then scale 1. Index = s*24 + t*3 + r.
+    var throughput = plotReady("throughput-plot");
+    if (throughput) {
+      var visT = [];
+      for (var s = 0; s < N_SCALES; s++)
+        for (var t = 0; t < N_TIERS; t++)
+          for (var r = 0; r < N_RUNS; r++)
+            visT.push(m[s][t]);
+      Plotly.restyle(throughput, { visible: visT });
+    }
+
+    // Latency: 2 panels (1k, 10k), each tier contributing 2 boxes
+    // (turnaround, queue wait). Index = s*16 + t*2 + metric.
+    var latency = plotReady("latency-plot");
+    if (latency) {
+      var visL = [];
+      for (var s = 0; s < N_SCALES; s++)
+        for (var t = 0; t < N_TIERS; t++)
+          for (var k = 0; k < 2; k++) visL.push(m[s][t]);
+      Plotly.restyle(latency, { visible: visL });
+    }
+  }
+
+  function init() {
+    document.querySelectorAll(".tier-cb").forEach(function(cb) {
+      cb.addEventListener("change", apply);
+    });
+
+    // Plots render after DOMContentLoaded; retry until they exist, then sync
+    // to the checkboxes' current state (browsers can restore it on reload).
+    var tries = 0;
+    var timer = setInterval(function() {
+      tries++;
+      if (plotReady("overview-plot") && plotReady("throughput-plot") &&
+          plotReady("latency-plot")) {
+        clearInterval(timer);
+        apply();
+      } else if (tries > 100) {
+        clearInterval(timer);
+      }
+    }, 100);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+
+## Throughput for the checked tiers
+
+Cumulative jobs completed vs. time since cluster submit — 3 runs per checked
+tier, colored by tier. Top panel: 1,000-job clusters; bottom: 10,000-job
+clusters.
+
+```{r throughput-plot, fig.height=7}
+throughput_panel <- function(s_idx) {
+  p <- plot_ly()
+  for (ti in seq_len(n_tiers) - 1) {
+    for (r in seq_len(n_runs)) {
+      d <- long_df %>%
+        filter(scale_idx == s_idx, tier_idx == ti, run_num == r) %>%
+        thin_curve()
+      p <- add_trace(
+        p, x = d$turnaround_s, y = d$cum_jobs,
+        type = "scatter", mode = "lines",
+        line = list(width = 2, color = tier_colors[ti + 1]),
+        visible = (ti == 0), showlegend = FALSE,
+        hoverinfo = "text",
+        text = paste0(d$tier, " (", scale_labels[s_idx + 1], ") run ", r,
+                      ": ", round(d$turnaround_s, 1), "s \u2014 ",
+                      d$cum_jobs, " jobs done")
+      )
+    }
+  }
+  p %>% layout(
+    xaxis = list(title = "Time since cluster submit (s)"),
+    yaxis = list(title = paste0("Jobs completed \u2014 ",
+                                scale_labels[s_idx + 1]),
+                 range = c(0, scales[s_idx + 1]))
+  )
+}
+
+p <- subplot(throughput_panel(0), throughput_panel(1), nrows = 2,
+             titleX = TRUE, titleY = TRUE, margin = 0.07) %>%
+  layout(margin = list(t = 10))
+p$elementId <- "throughput-plot"
+p
+```
+
+## Per-job latency for the checked tiers
+
+Turnaround (submit &rarr; termination, filled box) and queue wait (submit
+&rarr; first execution, hollow box), side by side for each checked
+`request_memory`, pooled across the 3 runs. Top panel: 1,000-job clusters;
+bottom: 10,000-job clusters.
+
+```{r latency-plot, fig.height=7}
+latency_panel <- function(s_idx) {
+  p <- plot_ly()
+  for (ti in seq_len(n_tiers) - 1) {
+    for (metric in c("turnaround_s", "queue_wait_s")) {
+      is_turn <- metric == "turnaround_s"
+      y <- long_df %>%
+        filter(scale_idx == s_idx, tier_idx == ti) %>%
+        pull(!!rlang::sym(metric))
+      s <- box_stats(y)
+      p <- add_trace(
+        p, x = tiers[ti + 1], type = "box",
+        q1 = list(s$q1), median = list(s$med), q3 = list(s$q3),
+        lowerfence = list(s$lf), upperfence = list(s$uf),
+        name = paste0(tiers[ti + 1], " ",
+                      if (is_turn) "turnaround" else "queue wait"),
+        offsetgroup = metric,
+        visible = (ti == 0), showlegend = FALSE,
+        fillcolor = if (is_turn) tier_fills[ti + 1] else "rgba(0,0,0,0)",
+        line = list(color = tier_colors[ti + 1])
+      )
+    }
+  }
+  p %>% layout(
+    xaxis = list(title = "", categoryorder = "array",
+                 categoryarray = tiers),
+    yaxis = list(title = paste0("Per-job latency (s) \u2014 ",
+                                scale_labels[s_idx + 1]))
+  )
+}
+
+lat <- subplot(latency_panel(0), latency_panel(1),
+               nrows = 2, titleY = TRUE, margin = 0.07) %>%
+  layout(boxmode = "group", margin = list(t = 10))
+lat$elementId <- "latency-plot"
+lat
+```
+
+## Where the checked tiers sit in the overall trend
+
+Every tier's median total completion time, one panel per cluster size —
+checked tiers light up in their tier color.
+
+```{r overview-plot, fig.height=4}
+overview_panel <- function(s_idx) {
+  d <- summary_df %>% filter(scale_idx == s_idx) %>% arrange(mb)
+  init_sizes  <- c(14, rep(8, n_tiers - 1))
+  init_colors <- c(tier_colors[1], rep("#c3c2b7", n_tiers - 1))
+  plot_ly() %>%
+    add_trace(
+      x = d$mb, y = d$median_total_time_s,
+      type = "scatter", mode = "lines+markers",
+      line = list(color = "#c3c2b7", width = 2),
+      marker = list(color = init_colors, size = init_sizes,
+                    line = list(color = "#fcfcfb", width = 2)),
+      hoverinfo = "text",
+      text = paste0(d$tier, " (", scale_labels[s_idx + 1], "): ",
+                    round(d$median_total_time_s), "s median total time"),
+      showlegend = FALSE
+    ) %>%
+    layout(
+      xaxis = list(title = "request_memory", type = "log",
+                   tickvals = unname(mb_map), ticktext = names(mb_map)),
+      yaxis = list(title = paste0("Median total time (s) \u2014 ",
+                                  scale_labels[s_idx + 1]))
+    )
+}
+
+ov <- subplot(overview_panel(0), overview_panel(1), nrows = 1,
+              titleX = TRUE, titleY = TRUE, margin = 0.07) %>%
+  layout(margin = list(t = 10))
+ov$elementId <- "overview-plot"
+ov
+```
