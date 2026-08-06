@@ -112,7 +112,7 @@ The project delivers a complete, rerunnable benchmark workflow built around a
 small set of scripts. The workload itself consists of `mc_pi.py`, which draws
 $S = 10{,}000$ samples per job using a seed derived uniquely from the HTCondor
 cluster and process IDs, and `mc_pi.sub`, the submit description that fixes
-identical CPU, memory, disk, and clock-time requests for every job in an
+identical CPU, memory, and disk for every job in an
 experiment. On the analysis side, `aggregate.py` cross-references each job's
 output file against the HTCondor event log so that only verifiably completed
 jobs (output present *and* a matching `JOB_TERMINATED` entry) are counted, and
