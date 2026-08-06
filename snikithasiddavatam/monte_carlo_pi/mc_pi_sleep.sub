@@ -12,4 +12,4 @@ request_cpus        = 1
 request_memory      = 512MB
 request_disk        = 100MB
 
-queue seed from seed_table.txt
+queue from table sleep.csv
