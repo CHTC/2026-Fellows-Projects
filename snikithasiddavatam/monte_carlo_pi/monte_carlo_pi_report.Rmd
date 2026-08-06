@@ -179,7 +179,7 @@ this project.
 
 The most valuable next step is to turn the workflow from a one-time experiment
 into a recurring instrument. Because every run is identical and self-validating,
-the center could schedule the benchmark to run automatically (for example,
+the Center could schedule the benchmark to run automatically (for example,
 weekly at a fixed job count and memory request) and archive the milestone
 curves over time, building a longitudinal picture of pool throughput that no
 single measurement window can provide. Pairing those recurring runs with a
