@@ -39,10 +39,12 @@ massively parallel, and statistically well understood. Monte Carlo
 estimation of $\pi$ fits perfectly: each job draws $S$ uniform random points in
 the unit square and counts how many fall inside the quarter-circle
 ($x^2 + y^2 < 1$); the fraction converges to $\pi/4$, and the estimation error
-shrinks at the known rate of $1/\sqrt{N}$ in the total sample count $N$. Because
-every job is identical and independent, any variation in completion time
-reflects the behavior of the scheduling system itself rather than the
-workload.
+shrinks at the known rate of $1/\sqrt{N}$ in the total sample count $N$. While
+each job produces a different result (each uses a different random seed), every
+job's resource usage is identical — the same number of CPUs, the same amount of
+memory and disk, the same input and output transfer, and the same runtime — so
+any variation in completion time reflects the behavior of the scheduling
+system itself rather than the workload.
 
 # Project Description
 
@@ -86,7 +88,12 @@ reset between experiments. Correctness at scale is also nontrivial: with
 100,000 jobs, a job must be counted as done only when both its output file
 exists at the Access Point *and* a matching `JOB_TERMINATED` entry appears in
 the HTCondor log, and the aggregation pipeline must order tens of thousands of
-completions by timestamp without double-counting or dropping jobs. Finally,
+completions by timestamp without double-counting or dropping jobs. The data
+output itself is a challenge at that scale: each job returns its own small
+output file to the Access Point, so a 100,000-job run deposits 100,000 files
+into a single directory, which strains the filesystem, slows every subsequent
+listing and aggregation pass, and makes it easy for a handful of missing or
+truncated files to go unnoticed without explicit verification. Finally,
 reproducibility requires that nothing about the experiment is left to chance
 inside the jobs: sampling seeds must be provably unique across clusters, and
 the sleep durations that stagger completions must be regenerable from a single
@@ -148,7 +155,8 @@ request only what a job actually needs.
 The practical impact is twofold. For pool users, the results translate
 directly into guidance on sizing job counts and resource requests so that
 workloads finish sooner. For facilitators, the workflow is a standardized
-instrument: because every job is identical and statistically well understood,
+instrument: because every job has identical resource usage and the workload is
+statistically well understood,
 it can be rerun at any time to observe how the pool's throughput behavior has
 changed, with the known convergence rate serving as a built-in correctness
 check.
