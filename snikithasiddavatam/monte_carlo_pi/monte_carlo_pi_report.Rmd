@@ -187,7 +187,7 @@ fair-share priority reset, coordinated with pool administrators, would remove
 the largest confound identified in this project and make cross-scale
 comparisons genuinely apples-to-apples.
 
-With another four weeks as a Fellow, I would extend the sweep dimensions
+If I had another four weeks as a Fellow, I would extend the sweep dimensions
 beyond memory: varying `request_cpus` and `request_disk` the same way
 `request_memory` was varied would complete the picture of how each resource
 request shapes matchability, and adding a controlled input-transfer payload
