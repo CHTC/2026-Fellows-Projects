@@ -35,7 +35,7 @@ resources. Users routinely over-request memory "to be safe," which shrinks the
 set of machines that can run their jobs and slows the whole workload down.
 
 To study these effects systematically, we need a workload that is simple,
-embarrassingly parallel, and statistically well understood. Monte Carlo
+massively parallel, and statistically well understood. Monte Carlo
 estimation of $\pi$ fits perfectly: each job draws $S$ uniform random points in
 the unit square and counts how many fall inside the quarter-circle
 ($x^2 + y^2 < 1$); the fraction converges to $\pi/4$, and the estimation error
