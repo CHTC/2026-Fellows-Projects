@@ -141,16 +141,24 @@ provided at the end of this report.
 
 # Project Outcome
 
-The project achieved its central goal: throughput on the pool is no longer a
-vague intuition but a set of measured curves. The runs confirm that the
-workflow scales cleanly across five orders of magnitude in job count, that the
-error of the $\pi$ estimate falls at the expected $1/\sqrt{N}$ rate (validating
-the pipeline end to end), and that completion-time behavior at each scale can
-be summarized in reproducible milestone charts. The memory sweep quantifies
+The project established the tools and a first measured baseline for reasoning
+about throughput on the pool. Where questions about completion-time behavior
+previously had to be answered from intuition alone, there is now a reusable
+workflow and a set of reference curves to compare against, even though
+interpreting any particular run still requires judgment about pool conditions.
+The runs demonstrate that the workflow ran successfully at every scale tested,
+from 10 to 100,000 jobs, that the error of the $\pi$ estimate falls at the
+expected $1/\sqrt{N}$ rate (validating the pipeline end to end), and that
+completion-time behavior at each scale can be summarized in reproducible
+milestone charts. The memory sweep quantifies
 the cost of over-requesting: inflating `request_memory` for an identical
 workload measurably delays completion by shrinking the set of machines a job
 can match, giving concrete evidence for the standard facilitation advice to
-request only what a job actually needs.
+request only what a job actually needs. Notably, the penalty does not grow
+smoothly with the request size: throughput behaves as a step function of
+`request_memory`, holding roughly steady across a range of request values and
+then dropping sharply once the request crosses a threshold that excludes a
+large tranche of the pool's machines.
 
 The practical impact is twofold. For pool users, the results translate
 directly into guidance on sizing job counts and resource requests so that
