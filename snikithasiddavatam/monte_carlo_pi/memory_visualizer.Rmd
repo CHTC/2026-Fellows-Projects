@@ -87,6 +87,14 @@ thin_curve <- function(d, max_pts = 400) {
   d[unique(c(round(seq(1, n, length.out = max_pts)), n)), ]
 }
 
+# Heading annotation placed above a subplot panel (paper coordinates).
+panel_heading <- function(label, x, y) {
+  list(text = paste0("<b>", label, "</b>"), x = x, y = y,
+       xref = "paper", yref = "paper",
+       xanchor = "center", yanchor = "bottom",
+       showarrow = FALSE, font = list(size = 15))
+}
+
 box_stats <- function(y) {
   q1 <- unname(quantile(y, 0.25, na.rm = TRUE))
   q3 <- unname(quantile(y, 0.75, na.rm = TRUE))
@@ -101,8 +109,7 @@ box_stats <- function(y) {
 
 Each row is one `request_memory` value; its color swatch matches that tier's
 color in every plot. Check a box to show that tier's runs at that cluster
-size. Median total time is the median (across the 3 runs) of the time for the
-whole cluster to finish.
+size.
 
 <style>
 #tier-table { border-collapse: collapse; margin: 1em 0 1.6em; }
@@ -111,7 +118,6 @@ whole cluster to finish.
 }
 #tier-table th { background: #f9f9f7; font-weight: 600; color: #0b0b0b; }
 #tier-table td.tier-name { text-align: left; font-weight: 600; }
-#tier-table td.num { font-variant-numeric: tabular-nums; text-align: right; }
 #tier-table .swatch {
   display: inline-block; width: 11px; height: 11px; border-radius: 3px;
   margin-right: 0.5em; vertical-align: baseline;
@@ -123,33 +129,19 @@ whole cluster to finish.
 </style>
 
 ```{r tier-table, results='asis'}
-fmt_s <- function(x) format(round(x), big.mark = ",")
-
-wide <- summary_df %>%
-  select(tier, tier_idx, scale_idx, median_total_time_s) %>%
-  tidyr::pivot_wider(names_from = scale_idx, values_from = median_total_time_s,
-                     names_prefix = "s") %>%
-  arrange(tier_idx)
-
 cat('<table id="tier-table">\n<thead>\n',
-    '<tr><th rowspan="2">request_memory</th>',
-    '<th colspan="2">1,000 jobs</th><th colspan="2">10,000 jobs</th></tr>\n',
-    '<tr><th>show</th><th>median total (s)</th>',
-    '<th>show</th><th>median total (s)</th></tr>\n',
+    '<tr><th>request_memory</th>',
+    '<th>1,000 jobs</th><th>10,000 jobs</th></tr>\n',
     '</thead>\n<tbody>\n', sep = "")
 
-for (i in seq_len(nrow(wide))) {
-  ti <- wide$tier_idx[i]
+for (ti in seq_len(n_tiers) - 1) {
   checked <- if (ti == 0) ' checked' else ''
   cat(sprintf(paste0(
     '<tr><td class="tier-name"><span class="swatch" style="background:%s"></span>%s</td>',
     '<td><input type="checkbox" class="tier-cb" data-scale="0" data-tier="%d"%s></td>',
-    '<td class="num">%s</td>',
-    '<td><input type="checkbox" class="tier-cb" data-scale="1" data-tier="%d"%s></td>',
-    '<td class="num">%s</td></tr>\n'),
-    tier_colors[ti + 1], wide$tier[i],
-    ti, checked, fmt_s(wide$s0[i]),
-    ti, checked, fmt_s(wide$s1[i])))
+    '<td><input type="checkbox" class="tier-cb" data-scale="1" data-tier="%d"%s></td></tr>\n'),
+    tier_colors[ti + 1], tiers[ti + 1],
+    ti, checked, ti, checked))
 }
 cat('</tbody>\n</table>\n')
 ```
@@ -249,7 +241,7 @@ cat('</tbody>\n</table>\n')
 
 ## Throughput for the checked tiers
 
-Cumulative jobs completed vs. time since cluster submit — 3 runs per checked
+Cumulative jobs completed vs. time since `condor_submit` — 3 runs per checked
 tier, colored by tier. Top panel: 1,000-job clusters; bottom: 10,000-job
 clusters.
 
@@ -274,16 +266,18 @@ throughput_panel <- function(s_idx) {
     }
   }
   p %>% layout(
-    xaxis = list(title = "Time since cluster submit (s)"),
-    yaxis = list(title = paste0("Jobs completed \u2014 ",
-                                scale_labels[s_idx + 1]),
+    xaxis = list(title = "Time since condor_submit (s)"),
+    yaxis = list(title = "Jobs completed",
                  range = c(0, scales[s_idx + 1]))
   )
 }
 
 p <- subplot(throughput_panel(0), throughput_panel(1), nrows = 2,
-             titleX = TRUE, titleY = TRUE, margin = 0.07) %>%
-  layout(margin = list(t = 10))
+             titleX = TRUE, titleY = TRUE, margin = 0.13) %>%
+  layout(margin = list(t = 30),
+         annotations = list(
+           panel_heading(scale_labels[1], x = 0.5, y = 1.0),
+           panel_heading(scale_labels[2], x = 0.5, y = 0.435)))
 p$elementId <- "throughput-plot"
 p
 ```
@@ -321,14 +315,16 @@ latency_panel <- function(s_idx) {
   p %>% layout(
     xaxis = list(title = "", categoryorder = "array",
                  categoryarray = tiers),
-    yaxis = list(title = paste0("Per-job latency (s) \u2014 ",
-                                scale_labels[s_idx + 1]))
+    yaxis = list(title = "Per-job latency (s)")
   )
 }
 
 lat <- subplot(latency_panel(0), latency_panel(1),
-               nrows = 2, titleY = TRUE, margin = 0.07) %>%
-  layout(boxmode = "group", margin = list(t = 10))
+               nrows = 2, titleY = TRUE, margin = 0.13) %>%
+  layout(boxmode = "group", margin = list(t = 30),
+         annotations = list(
+           panel_heading(scale_labels[1], x = 0.5, y = 1.0),
+           panel_heading(scale_labels[2], x = 0.5, y = 0.435)))
 lat$elementId <- "latency-plot"
 lat
 ```
@@ -358,14 +354,16 @@ overview_panel <- function(s_idx) {
     layout(
       xaxis = list(title = "request_memory", type = "log",
                    tickvals = unname(mb_map), ticktext = names(mb_map)),
-      yaxis = list(title = paste0("Median total time (s) \u2014 ",
-                                  scale_labels[s_idx + 1]))
+      yaxis = list(title = "Median total time (s)")
     )
 }
 
 ov <- subplot(overview_panel(0), overview_panel(1), nrows = 1,
               titleX = TRUE, titleY = TRUE, margin = 0.07) %>%
-  layout(margin = list(t = 10))
+  layout(margin = list(t = 30),
+         annotations = list(
+           panel_heading(scale_labels[1], x = 0.2325, y = 1.0),
+           panel_heading(scale_labels[2], x = 0.7675, y = 1.0)))
 ov$elementId <- "overview-plot"
 ov
 ```
