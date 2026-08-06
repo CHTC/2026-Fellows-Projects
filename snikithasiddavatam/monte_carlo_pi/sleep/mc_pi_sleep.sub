@@ -1,4 +1,4 @@
-shell = python3 mc_pi.py 10000 $(seed) $(Cluster)
+shell = python3 mc_pi.py 10000 $(seed) $(Cluster) $(sleep)
 
 output              = run_$(Cluster)/logs/logs/job_$(Process).out
 error               = run_$(Cluster)/logs/logs/job_$(Process).err
