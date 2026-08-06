@@ -33,11 +33,16 @@ progress through the system, particularly around resource requests.
 
 ## Facilitation Project 2
 
-TBD
+Project aims to improve accessibility, clarity, and accuracy of
+CHTC's documentation so that users can more easily achieve their
+research goals.
 
-- Fellow: Daniella Wright
-- Mentors: Amber Lim and Christina Koch
-- Project: TBD
+- Fellow: Daniella Wright (`daniellawright`)
+- Mentors: Amber Lim (`xamberl`) and Christina Koch (`ChristinaLK`)
+- Project: [daniellawright](/daniellawright)
 - Final Report: TBD
-- Fellow Links: TBD
+- Fellow Links:
+    - [Daniella Wright LinkedIn](https://www.linkedin.com/in/daniella-wright)
+    - [Daniella Wright Personal Website](https://daniellawright.com)
+    - Daniella Wright Email: wrightnogueda@wisc.edu
 
