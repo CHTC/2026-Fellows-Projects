@@ -135,7 +135,7 @@ with per-scale runtime, turnaround, and completion-scatter plots; cross-scale
 milestone comparisons recording when each 10% completion milestone was
 reached; and a memory sweep varying `request_memory` from 500 MB to 64 GB on
 an otherwise identical 1,000-job workload. A companion visualizer
-(`memory_simulator.Rmd`) provides an interactive summary of the
+(`memory_visualizer.Rmd`) provides an interactive summary of the
 results of this work for others to explore. Links to all scripts and figures are
 provided at the end of this report.
 
@@ -250,8 +250,8 @@ On the analysis side, I sharpened a practical workflow for scaling studies:
 structuring per-scale runs into parallel directory trees (`mc_runs_10` through
 `mc_runs_100000`), writing plotting scripts that operate uniformly across
 scales, and using R Markdown to keep the analytical model (the memory
-simulator) and the measured results in documents that can be regenerated from
-scratch. Building the simulator alongside the measurements also changed how I
+visualizer) and the measured results in documents that can be regenerated from
+scratch. Building the visualizer alongside the measurements also changed how I
 approach experiments generally: having a simple analytical expectation to
 compare against made it far easier to tell when a measured effect was real and
 when it was an artifact of the pipeline.
