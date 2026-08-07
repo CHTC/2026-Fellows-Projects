@@ -304,29 +304,37 @@ python milestone_scatter.py
 
 ---
 
-### `make_memory_graphs.py` — Aggregate + plot for the memory-request experiment
+### `make_memory_graphs.py` — Aggregate + plot for the memory-request experiment (parameterized by job count)
 
-Analyzes how the `request_memory` setting affects throughput and scheduling latency. Reads runs from `memory/mc_runs_10000_mem_<TIER>/` (one folder per memory tier, e.g. `500MB`, `1GB`, ..., `32GB`), aggregates each run into a `results.csv`, and produces comparison plots under `graphs/memory/`.
+Analyzes how the `request_memory` setting affects throughput and scheduling latency. Takes the job count as a command-line argument: reads runs from `memory/mc_runs_<num_jobs>_mem_<TIER>/` (one folder per memory tier: `500MB`, `1GB`, `2GB`, `4GB`, `8GB`, `16GB`, `32GB`, `64GB`), aggregates each run into a `results.csv`, and produces comparison plots under `graphs/memory_<num_jobs>/`.
 
-Each tier folder contains its own copy of `mc_pi.sub`, identical except for `request_memory` (all use 10,000 jobs at S=100 samples per job), plus the `run_<ClusterID>/` folders from 3 independent submissions at that tier.
+The experiment exists at two scales:
+- **10,000 jobs** at S=100 samples per job (`memory/mc_runs_10000_mem_<TIER>/`)
+- **1,000 jobs** at S=1000 samples per job (`memory/mc_runs_1000_mem_<TIER>/`)
 
-**To run:**
+Each tier folder contains its own copy of `mc_pi.sub`, identical except for `request_memory`, plus the `run_<ClusterID>/` folders from 3 independent submissions at that tier.
+
+**Usage:**
 ```
-python make_memory_graphs.py
+python make_memory_graphs.py <num_jobs>
 ```
+
+| Argument | Description |
+|----------|-------------|
+| `num_jobs` | Job count for the memory experiment (`1000` or `10000`); selects `memory/mc_runs_<num_jobs>_mem_*/` as input and `graphs/memory_<num_jobs>/` as output |
 
 **What it does, step by step:**
-1. Discovers all `memory/mc_runs_10000_mem_<TIER>/` folders and sorts tiers by memory size
+1. Discovers all `memory/mc_runs_<num_jobs>_mem_<TIER>/` folders and sorts tiers by memory size
 2. Aggregates any run lacking a `results.csv` (same logic as `make_graphs.py`, additionally recording first-execution time, queue wait, and HTCondor's reported `MemoryUsage` per job)
 3. Loads all `results.csv` files and generates three plots plus a summary table, colored by tier (viridis, ordered by memory size)
 
-**Output files (saved under `graphs/memory/`):**
+**Output files (saved under `graphs/memory_<num_jobs>/`):**
 
 | Output file | What it shows |
 |-------------|---------------|
 | `memory_cumulative_jobs.png` | Cumulative jobs completed vs. time since cluster submit, one line per run, colored by memory tier |
 | `memory_latency_box.png` | Two-panel boxplots per tier: turnaround time (submit → termination) and queue wait time (submit → first execution) |
-| `memory_total_completion.png` | Total time for all 10,000 jobs to finish vs. requested memory (log₂ x-axis), one point per run with a median trend line |
+| `memory_total_completion.png` | Total time for all jobs to finish vs. requested memory (log₂ x-axis), one point per run with a median trend line |
 | `memory_summary.csv` | Per-tier medians: turnaround, p90 turnaround, queue wait, and total completion time |
 
 **Output CSV columns** (extends `make_graphs.py`'s columns):
@@ -344,6 +352,85 @@ python make_memory_graphs.py
 | `N` | Total samples accumulated through job j |
 | `pi_est` | Running π estimate |
 | `error` | Absolute error: \|pi_est − π_ref\| |
+
+---
+
+### `sleep/` — Sleep-variation experiment (staggered job completion)
+
+Variant of the workflow where each job sleeps for a pre-assigned duration before exiting, so job completion times are staggered in a controlled, reproducible way (rather than depending only on scheduling variation).
+
+| File | Description |
+|------|-------------|
+| `sleep/mc_pi.py` | Worker script variant taking a 4th argument `sleep_time`; identical Monte Carlo logic, but records `sleep_time=<seconds>` in the output file and sleeps for that duration after writing it |
+| `sleep/mc_pi_sleep.sub` | Submit file using `queue from table sleep.csv`, so each job's `$(seed)` and `$(sleep)` come from one row of the table; output files are named `output_$(seed).txt` |
+| `sleep/sleep.csv` | Table of 10,000 rows with columns `seed,sleep`; sleep durations range from 5 to 60 seconds, pre-generated from a single seed chain so the whole assignment is regenerable |
+
+**Worker usage:**
+```
+python mc_pi.py <S> <ProcID> <ClusterID> <sleep_time>
+```
+
+**How `queue from table` works:** instead of `queue N`, the submit file ends with:
+```
+queue from table sleep.csv
+```
+HTCondor reads `sleep.csv`, takes the header row (`seed,sleep`) as variable names, and queues **one job per data row** — 10,000 rows → 10,000 jobs. Within each job, `$(seed)` and `$(sleep)` expand to that row's values, so:
+
+- `shell = python3 mc_pi.py 10000 $(seed) $(Cluster) $(sleep)` passes the row's seed as the job's ProcID-equivalent and the row's sleep duration as the 4th argument
+- `transfer_output_files = output_$(seed).txt` retrieves the file the worker names after the seed, so output filenames stay unique per row
+
+**To run the sleep experiment:**
+```
+1. (Optional) Edit sleep.csv to change the job count or sleep assignments.
+   Keep the header row "seed,sleep"; one data row per job, seed values unique.
+
+2. Submit from the sleep/ directory:
+   cd sleep/
+   condor_submit mc_pi_sleep.sub
+   # → queues one job per row of sleep.csv; creates run_<ClusterID>/ as usual
+
+3. Wait for completion, then aggregate/plot with the same tooling as the
+   other experiments once the run folder is moved into an mc_runs_* directory.
+```
+
+Each job writes the usual output fields plus `sleep_time=<seconds>`, then sleeps for that duration before exiting — so its `JOB_TERMINATED` timestamp is delayed by the assigned amount. Because the sleep durations are assigned on the submit side from `sleep.csv` (not drawn randomly inside each job), rerunning the experiment reproduces the exact same per-job stagger.
+
+---
+
+### `memory_visualizer.Rmd` — Interactive memory-experiment explorer
+
+R Markdown document that renders to a self-contained interactive HTML page (`memory_visualizer.html`) built with plotly. Checkboxes let you pick `request_memory` tiers — from the 1,000-job clusters, the 10,000-job clusters, or both — and the plots update to show only the checked tiers:
+
+- Cumulative jobs completed vs. time since submit (throughput)
+- Per-job latency boxplots (turnaround and queue wait)
+- Where the checked tiers sit in the overall median-total-time trend
+
+**Software setup (one-time):**
+
+1. Install R (≥ 4.x) from [r-project.org](https://www.r-project.org/), or via a package manager (`brew install r` on macOS)
+2. (Recommended) Install [RStudio Desktop](https://posit.co/download/rstudio-desktop/) — it bundles pandoc, which `rmarkdown` needs for HTML output. If rendering from the R console without RStudio, install pandoc separately (`brew install pandoc`)
+3. Install the required R packages from an R console:
+   ```r
+   install.packages(c("rmarkdown", "knitr", "dplyr", "purrr", "plotly"))
+   ```
+
+**Data prerequisite:** the memory-experiment `results.csv` files must exist — run `python make_memory_graphs.py 1000` and `python make_memory_graphs.py 10000` first. The Rmd reads them via relative paths (`memory/mc_runs_<scale>_mem_<TIER>/run_*/results.csv`), so it must be rendered with the working directory set to `monte_carlo_pi/`.
+
+**To render:**
+
+- **In RStudio:** open `memory_visualizer.Rmd` and click **Knit** (or press Cmd/Ctrl+Shift+K)
+- **From the command line:**
+  ```
+  Rscript -e 'rmarkdown::render("memory_visualizer.Rmd")'
+  ```
+
+Either way produces `memory_visualizer.html` next to the Rmd. The HTML is fully self-contained (plots and data embedded), so it can be opened in any browser or shared as a single file — no R required to view it.
+
+---
+
+### `monte_carlo_pi_report.Rmd` — Project report
+
+Full write-up of the project (background, scope, challenge, vision, deliverables, outcomes, limitations, recommendations, and lessons learned), covering the multi-scale throughput experiments, the sleep-variation experiment, and the memory-request experiments. Rendered versions are checked in as `monte_carlo_pi_report.html` and `monte_carlo_pi_report.pdf`.
 
 ---
 
@@ -419,20 +506,36 @@ Contains a small set of pre-generated output files and a parse test script for v
 
 To run multiple independent experiments at the same job count, repeat the relevant submit+move+aggregate steps. `make_graphs.py` automatically discovers all `run_*` folders in `mc_runs_<N>/` and skips any that already have `results.csv`.
 
-### Memory-request experiment (comparing 500MB / 1GB / 2GB / 4GB / 8GB / 16GB / 32GB)
+### Memory-request experiment (comparing 500MB / 1GB / 2GB / 4GB / 8GB / 16GB / 32GB / 64GB)
+
+Run at two scales: 10,000 jobs (S=100) and 1,000 jobs (S=1000).
 
 ```
 1. For each memory tier, edit request_memory in the tier's copy of mc_pi.sub
-   (memory/mc_runs_10000_mem_<TIER>/mc_pi.sub; queue 10000, S=100) and submit 3 times:
+   (memory/mc_runs_<num_jobs>_mem_<TIER>/mc_pi.sub) and submit 3 times:
    condor_submit mc_pi.sub
 
 2. After each batch completes, move the run folder into its tier directory:
-   mv run_<ClusterID> memory/mc_runs_10000_mem_<TIER>/
+   mv run_<ClusterID> memory/mc_runs_<num_jobs>_mem_<TIER>/
 
-3. Aggregate and plot all tiers at once:
-   python make_memory_graphs.py
+3. Aggregate and plot all tiers at one scale:
+   python make_memory_graphs.py 10000    # or: python make_memory_graphs.py 1000
    # → writes results.csv per run
-   # → writes graphs/memory/*.png and graphs/memory/memory_summary.csv
+   # → writes graphs/memory_<num_jobs>/*.png and graphs/memory_<num_jobs>/memory_summary.csv
+
+4. (Optional) Explore both scales interactively:
+   knit memory_visualizer.Rmd → memory_visualizer.html
+```
+
+### Sleep-variation experiment (staggered completions)
+
+```
+1. Submit from the sleep/ directory (sleep.csv assigns each job its seed and sleep duration):
+   cd sleep/
+   condor_submit mc_pi_sleep.sub
+
+2. Aggregate and plot with the same tooling as the other experiments once
+   the run folder is moved into the appropriate mc_runs_* directory.
 ```
 
 > [!WARNING]
@@ -455,11 +558,17 @@ monte_carlo_pi/
 ├── milestone_times.py        ← extracts percentile completion times → milestone_times.csv
 ├── milestone_scatter.py      ← plots milestone_times.csv
 ├── milestone_times.csv       ← output of milestone_times.py
-├── make_memory_graphs.py     ← aggregate+plot for the memory-request experiment
+├── make_memory_graphs.py     ← aggregate+plot for the memory-request experiment (e.g. `python make_memory_graphs.py 10000`)
+├── memory_visualizer.Rmd     ← interactive memory-experiment explorer (renders to memory_visualizer.html)
+├── monte_carlo_pi_report.Rmd ← project report (rendered as .html and .pdf)
 ├── utils.py                  ← shared helper
 ├── examples/                 ← sample data for testing
 │   ├── output_0.txt … output_3.txt
 │   └── parse_test.py
+├── sleep/                    ← sleep-variation experiment
+│   ├── mc_pi.py              ← worker variant with a sleep_time argument
+│   ├── mc_pi_sleep.sub       ← submit file (queue from table sleep.csv)
+│   └── sleep.csv             ← 10,000 rows of seed,sleep assignments (5–60 s)
 ├── graphs/
 │   ├── 10_jobs/
 │   │   ├── mc_runs_10_scatter.png
@@ -476,11 +585,14 @@ monte_carlo_pi/
 │   │   ├── milestones_<N>_jobs.png  (one per job count)
 │   │   ├── milestones_combined.png
 │   │   └── milestones_combined_boxplot.png
-│   └── memory/
-│       ├── memory_cumulative_jobs.png
-│       ├── memory_latency_box.png
-│       ├── memory_total_completion.png
-│       └── memory_summary.csv
+│   ├── memory/          ← 10,000-job memory experiment (original output dir)
+│   │   ├── memory_cumulative_jobs.png
+│   │   ├── memory_latency_box.png
+│   │   ├── memory_total_completion.png
+│   │   └── memory_summary.csv
+│   ├── memory_1000/     ← 1,000-job memory experiment (same four outputs)
+│   └── comparison/
+│       └── runtime_comparison.png
 ├── mc_runs_10/
 │   └── run_<ClusterID>/
 │       ├── results.csv
@@ -495,14 +607,10 @@ monte_carlo_pi/
 ├── mc_runs_10000/       ← same structure, 10000 jobs per run
 ├── mc_runs_100000/      ← same structure, 100000 jobs per run
 └── memory/
-    ├── mc_runs_10000_mem_500MB/
+    ├── mc_runs_10000_mem_500MB/   ← 10,000 jobs, S=100
     │   ├── mc_pi.sub    ← tier-specific submit file (request_memory = 500MB)
     │   └── run_<ClusterID>/   ← 3 runs, same structure as mc_runs_<N>
-    ├── mc_runs_10000_mem_1GB/
-    ├── mc_runs_10000_mem_2GB/
-    ├── mc_runs_10000_mem_4GB/
-    ├── mc_runs_10000_mem_8GB/
-    ├── mc_runs_10000_mem_16GB/
-    └── mc_runs_10000_mem_32GB/
+    ├── mc_runs_10000_mem_1GB/ … mc_runs_10000_mem_64GB/   ← remaining 10,000-job tiers
+    └── mc_runs_1000_mem_500MB/ … mc_runs_1000_mem_64GB/   ← 1,000-job tiers (S=1000), same layout
 ```
 
