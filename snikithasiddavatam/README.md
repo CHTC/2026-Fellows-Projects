@@ -432,6 +432,7 @@ Either way produces `memory_visualizer.html` next to the Rmd. The HTML is fully 
 
 Full write-up of the project (background, scope, challenge, vision, deliverables, outcomes, limitations, recommendations, and lessons learned), covering the multi-scale throughput experiments, the sleep-variation experiment, and the memory-request experiments. Rendered versions are checked in as `monte_carlo_pi_report.html` and `monte_carlo_pi_report.pdf`.
 
+Note: Follow the same process as the memory vizualizer for rendering. 
 ---
 
 ### `utils.py` — Shared helper
