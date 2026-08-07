@@ -1,8 +1,10 @@
 ---
-title: "Monte Carlo Estimation of $\\pi$ on HTCondor"
-author: "Snikitha Siddavatam"
+title: "2026 CHTC Fellows Project Report"
+author: "Fellow: Snikitha Siddavatam"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
-subtitle: "Understanding Throughput Using a Standardized Workflow"
+subtitle: "Monte Carlo Estimation of $\\pi$ on HTCondor — Understanding Throughput Using a Standardized Workflow"
+include-before:
+  - '\begin{center}\begin{tabular}{|l|l|}\hline \textit{Category} & Facilitation \\ \hline \textit{Mentor(s)} & Andrew Owen and Ian Ross \\ \hline \textit{Timeline} & May 18th 2026 - Aug 7th 2026 \\ \hline \end{tabular}\end{center}'
 
 output:
   pdf_document:
@@ -258,7 +260,7 @@ when it was an artifact of the pipeline.
 
 # Project Material Links and Descriptions
 
-[`snikithasiddavatam`](https://github.com/CHTC/2026-Fellows-Projects/tree/main/snikithasiddavatam)
+<https://github.com/CHTC/2026-Fellows-Projects/tree/main/snikithasiddavatam>
 
 - My folder in the Fellows GitHub repository, containing all scripts, submit
   files, per-scale run directories, generated figures, and this report.
