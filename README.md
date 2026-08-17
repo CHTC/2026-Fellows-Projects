@@ -40,7 +40,7 @@ research goals.
 - Fellow: Daniella Wright (`daniellawright`)
 - Mentors: Amber Lim (`xamberl`) and Christina Koch (`ChristinaLK`)
 - Project: [daniellawright](/daniellawright)
-- Final Report: TBD
+- Final Report: [2026 Fellows Final Report - Daniella Wright Nogueda](https://docs.google.com/document/d/1Fur_jWBKBm4eUf6MTT3nUHEjGT_e9DNcc2p9YXtBXDY/edit?usp=sharing)
 - Fellow Links:
     - [Daniella Wright LinkedIn](https://www.linkedin.com/in/daniella-wright)
     - [Daniella Wright Personal Website](https://daniellawright.com)
